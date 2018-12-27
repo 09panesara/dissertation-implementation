@@ -1,22 +1,25 @@
 import simplejson as json
 from collections import Counter
 import numpy as np
+from numpy import ma
 from pykalman import KalmanFilter
 import ast
 
 class ProcessOpenPose2DData():
     def __init__(self, processFromStart=False, read_checkpoints=True):
-        with open('../openpose/output/jsonfiles.txt', 'r') as f:
-            json_filenames = f.readlines()
-        self.json_filenames = [filename[:-1] for filename in json_filenames] # Remove \n character from filenames
-
-        with open('../openpose/data/walking/video_filenames.txt', 'r') as f2:
-            video_filenames = f2.readlines()
-        self.video_filenames = [filename[:-5] for filename in video_filenames] # Remove \n character from filenames
-
-        self.files = [[json_file for json_file in json_filenames if json_file.startswith(file)] for file in self.video_filenames]
 
         if processFromStart:
+            with open('../openpose/output/jsonfiles.txt', 'r') as f:
+                json_filenames = f.readlines()
+            self.json_filenames = [filename[:-1] for filename in json_filenames]  # Remove \n character from filenames
+
+            with open('../openpose/data/walking/video_filenames.txt', 'r') as f2:
+                video_filenames = f2.readlines()
+            self.video_filenames = [filename[:-5] for filename in video_filenames]  # Remove \n character from filenames
+
+            self.files = [[json_file for json_file in json_filenames if json_file.startswith(file)] for file in
+                          self.video_filenames]
+
             self.initial_process_of_data()
         else:
             with open('json_data.txt', 'r') as f:
@@ -193,15 +196,24 @@ class ProcessOpenPose2DData():
 
     def apply_kf_to_missing(self):
         # Treat remaining empty keypoints as full NAs we need to replace using kalman filter
+        # keypoints = self.keypoints
+        # keypoints = [[[item if item!=0 or isinstance(item, float) else np.ma for item in video_keypoints] for video_keypoints in video] for video in keypoints]
+        # # anything with 0 =noise, 0.0 = actual angle
+        # # self.write_back('keypoints.txt', keypoints)
+        # self.keypoints = keypoints
         keypoints = self.keypoints
-        keypoints = [[[item if item!=0 or isinstance(item, float) else np.ma for item in video_keypoints] for video_keypoints in video] for video in keypoints]
-        # anything with 0 =noise, 0.0 = actual angle
-        # self.write_back('keypoints.txt', keypoints)
-        self.keypoints = keypoints
+        keypoints = np.ma.asarray(keypoints)
+        # Replace nans with ma.masked
+        keypoints = [[[item if item != 0 or isinstance(item, float) else ma.masked for item in video_keypoints] for video_keypoints in video] for video in keypoints]
+        kf = KalmanFilter.em(X=keypoints, n_iter=5)
+        (filtered_state_means, filtered_state_covariances) = kf.filter(measurements)
+        (smoothed_state_means, smoothed_state_covariances) = kf.smooth(measurements)
+        return
 
 
 
 
 processOpenPose = ProcessOpenPose2DData()
+processOpenPose.apply_kf_to_missing()
 print(processOpenPose.keypoints[0])
 
