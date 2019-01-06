@@ -45,9 +45,10 @@ def dist_btwn_vectors(a, b):
     return np.linalg.norm(a-b)
 
 
-def generate_LMA_features(keypoints):
+# TODO: test
+def generate_LMA_features(keypoints, timestep_between_frame):
     keypoints = normalise_keypoints(keypoints)
-    LMA_vector = []
+    LMA_vector = {}
 
     # Approximate center of mass as avg of points
     center_of_mass = [[np.mean(frame[:,0]), np.mean(frame[:,1]), np.mean(frame[:,2])] for frame in keypoints]
@@ -62,10 +63,6 @@ def generate_LMA_features(keypoints):
     Distance between left knee and centre of gravity
    
     '''
-    d_LHand_LShoulder = [dist_btwn_vectors(frame[joints['LHand']], frame[joints['LShoulder']]) for frame in keypoints]
-    d_RHand_RShoulder = [dist_btwn_vectors(frame[joints['RHand']], frame[joints['RShoulder']]) for frame in keypoints]
-    d_LFoot_LHip = [dist_btwn_vectors(frame[joints['LFoot']], frame[joints['LHip']]) for frame in keypoints]
-    d_RFoot_RHip = [dist_btwn_vectors(frame[joints['RFoot']], frame[joints['RHip']]) for frame in keypoints]
 
     # TODO: Check for handedness of actors.
     # TODO: Check neck/nose = center of shoulders
@@ -82,12 +79,17 @@ def generate_LMA_features(keypoints):
     d_LKnee_center = [dist_btwn_vectors(frame[joints['LKnee']], axis_knee_feet[t]) for t, frame in enumerate(keypoints)]
     d_RKnee_center = [dist_btwn_vectors(frame[joints['RKnee']], axis_knee_feet[t]) for t, frame in enumerate(keypoints)]
 
+    LMA_vector['dys_hands'] = np.divide(d_LHand_center, np.sum(d_LHand_center, d_RHand_center)) # TODO: replace with non-dominant hand/knee/foot
+    LMA_vector['dys_knees'] = np.divide(d_LKnee_center, np.sum(d_LKnee_center, d_RKnee_center))
+    LMA_vector['dys_feet'] =  np.divide(d_LFoot_center, np.sum(d_LFoot_center, d_RFoot_center))
 
-    dys_hands = np.divide(d_LHand_center, np.sum(d_LHand_center, d_RHand_center)) # TODO: replace with non-dominant hand/knee/foot
-    dys_knees = np.divide(d_LKnee_center, np.sum(d_LKnee_center, d_RKnee_center))
-    dys_feet =  np.divide(d_LFoot_center, np.sum(d_LFoot_center, d_RFoot_center))
 
-
+    LMA_vector['d_LHand_LShoulder'] = [dist_btwn_vectors(frame[joints['LHand']], frame[joints['LShoulder']]) for frame in keypoints]
+    LMA_vector['d_RHand_RShoulder'] = [dist_btwn_vectors(frame[joints['RHand']], frame[joints['RShoulder']]) for frame in keypoints]
+    LMA_vector['d_LFoot_LHip'] = [dist_btwn_vectors(frame[joints['LFoot']], frame[joints['LHip']]) for frame in keypoints]
+    LMA_vector['d_RFoot_RHip'] = [dist_btwn_vectors(frame[joints['RFoot']], frame[joints['RHip']]) for frame in keypoints]
+    LMA_vector['d_LKnee_center'] = d_LKnee_center
+    LMA_vector['d_RKnee_center'] = d_RKnee_center
 
     '''
     Effort: 
@@ -95,21 +97,25 @@ def generate_LMA_features(keypoints):
     
     (Weight) vertical (y) components of velocity and acceleration sequences associated with joints 
     '''
-    timesteps = data_utils.get_timestep('../VideoPose3D/videos/walking_videos') # float
-    velocity = [0.0]
+
+    velocity = [[0.0]*17]
     velocity[1:] = [frame - keypoints[t-1] for t, frame in enumerate(keypoints[1:])]
-    velocity = np.divide(velocity, timesteps) # TODO: check are floats, should be
+    velocity = np.divide(velocity, timestep_between_frame) # TODO: check are floats, should be
 
-    accel = [0.0]
+    accel = [[0.0]*17]
     accel[1:] = [v[t]-velocity[t-1] for t, v in enumerate(velocity[1:])]
-    accel = np.divide(accel, timesteps)
+    accel = np.divide(accel, timestep_between_frame)
 
-    flow = [0.0]
+    flow = [[0.0]*17]
     flow[1:] = [a[t] - accel[t-1] for t, a in enumerate(accel[1:])]
-    flow = np.divide(flow, timesteps)
+    flow = np.divide(flow, timestep_between_frame)
 
-    velocity = [frame_veloc[1] for frame_veloc in velocity]
-    accel = [accel_veloc[1] for accel_veloc in accel]
+    velocity = [joint_veloc[1] for frame in velocity for joint_veloc in frame]
+    accel = [joint_accel[1] for frame in accel for joint_accel in frame]
+
+    LMA_vector.update({'veloc_y_'+ joints_by_index[i]: velocity[i] for i in range(17)}) # No velocity/accel at timestep 0
+    LMA_vector.update({'accel_y_' + joints_by_index[i]: accel[i] for i in range(17)})
+    LMA_vector.update({'jerk_' + joints_by_index[i]: flow[i] for i in range(17)})
 
     ''' 
     Shape: 
@@ -134,12 +140,24 @@ def generate_LMA_features(keypoints):
     A_y = [np.max(frame[:,1])-np.min(frame[:,1]) for frame in keypoints]
     A_z = [np.max(frame[:,2])-np.min(frame[:,2]) for frame in keypoints]
 
+    LMA_vector['contraction'] = C_t
+    LMA_vector['spread_enclos'] = spread_enclos_measure
+    LMA_vector['rise_sink'] = rise_sink_measure
+    LMA_vector['Ampl_x'] = A_x
+    LMA_vector['Ampl_y'] = A_y
+    LMA_vector['Ampl_z'] = A_z
+
+
     '''
     Space: elbow forward-backward motion, forward tilt angle 
     '''
-    forward_tilt_angle = [calculate_angle([0, 1, 0], frame[joints['Hip']-joints['Head']]) for frame in keypoints]
+    forward_tilt_angle = [calculate_angle([0, 1, 0], frame[joints['Hip']]-frame[joints['Head']]) for frame in keypoints]
     LElbow_fb_motion = [dist_btwn_vectors(frame[joints['LElbow']],keypoints[i-1][joints['LElbow']]) if i > 0 else 0 for i, frame in enumerate(keypoints)]
     RElbow_fb_motion = [dist_btwn_vectors(frame[joints['RElbow']],keypoints[i-1][joints['RElbow']]) if i > 0 else 0 for i, frame in enumerate(keypoints)]
+
+    LMA_vector['forward_tilt_angle'] = forward_tilt_angle
+    LMA_vector['LElbow_fb_motion'] = LElbow_fb_motion
+    LMA_vector['LElbow_fb_motion'] = RElbow_fb_motion
 
     return LMA_vector
 
@@ -170,6 +188,9 @@ joints = {
     'RWrist': 16
 }
 
+joints_by_index = list(joints.keys())
+
+timesteps = data_utils.get_timestep('../VideoPose3D/videos/walking_videos')  # float
 
 for subject in keypoints_3d:
     for action in keypoints_3d[subject]:
@@ -177,7 +198,7 @@ for subject in keypoints_3d:
             for intensity in keypoints_3d[subject][action][emotion]:
                 LMA_df.append()
                 LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}\
-                    .update(generate_LMA_features(keypoints_3d[subject][action][emotion][intensity]))
+                    .update(generate_LMA_features(keypoints_3d[subject][action][emotion][intensity], timestep_between_frame=timesteps[subject][action][emotion][intensity]))
                 LMA_df.append(LMA_features, ignore_index=True)
 
 

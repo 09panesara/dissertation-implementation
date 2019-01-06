@@ -3,6 +3,8 @@ import os
 import glob
 import re
 
+from moviepy.editor import VideoFileClip
+
 def join_3d_keypoints(keypoints_folder, output_dir='../../data'):
     '''
     Takes keypoints npz files from videopose on each of the videos, and concatenates into one npz file
@@ -48,8 +50,33 @@ def load_3d_keypoints(keypoints_folder='../../data'):
 def load_data(folder='../../data'):
     return np.load(folder + '/data.npz', encoding='latin1')['features'].item()
 
+
+
+
 def get_timestep(videos_dir):
-    return [[]*400]
+    vid_list = list(glob.iglob(videos_dir + '/*.wmv'))
+
+    timesteps = {}
+
+    for i, video in enumerate(vid_list):
+        vid_name = os.path.basename(video)[:-4]
+        subject = str(int(vid_name[:3])) + str(vid_name[3])
+        emotion = vid_name[5:8]
+        intensity = vid_name[9:12]
+        action = 'Walking' + vid_name[-1] if 'win' in vid_name else 'unknown_action'
+
+        if subject not in timesteps:
+            timesteps[subject] = {}
+        if action not in timesteps[subject]:
+            timesteps[subject][action] = {}
+        if emotion not in timesteps[subject][action]:
+            timesteps[subject][action][emotion] = {}
+        assert intensity not in timesteps[subject][action][emotion][intensity]
+
+        timesteps[subject][action][emotion][intensity] = VideoFileClip(video).duration / 30 # divide by 30 fps to get fps
+
+
+    return timesteps
 
 if __name__ == '__main__':
     join_3d_keypoints('../../VideoPose3D/output/keypoints')
