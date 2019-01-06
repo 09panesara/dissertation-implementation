@@ -1,2 +1,15 @@
 openpose/
 diss/
+VideoPose3D/CODE_OF_CONDUCT.md			
+VideoPose3D/CONTRIBUTING.md				
+VideoPose3D/images
+VideoPose3D/DATASETS.md				
+VideoPose3D/DOCUMENTATION.md			
+VideoPose3D/LICENSE					
+VideoPose3D/README.md				
+VideoPose3D/__init__.py				
+VideoPose3D/__pycache__				
+VideoPose3D/checkpoint				
+VideoPose3D/videos
+VideoPose3D/common
+
