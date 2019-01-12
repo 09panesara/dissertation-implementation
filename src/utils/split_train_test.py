@@ -6,15 +6,22 @@ import random
 no_videos = 563
 
 
+'''
+TODO:
+split data into 80:20 training test
+Then split training into 80:20 train, test 5 times for cross-validation 
+'''
 
 def split(df, train_split=60, val_split=20, test_split=20):
     '''
-    Takes keypoints file containing feature vectors, splits into training, validation and test set with:
+    Takes keypoints (OR LMA file?) containing feature vectors, splits into training, validation and test set with:
     - roughly equal proportion of each emotion
     - roughly equal number of each actor
-    :param keypoints_3d:
     :return: train, validation, test set
     '''
+    # Shuffle order of rows
+    df = df.reindex(np.random.permutation(df.index))
+
     columns = df.columns.values
     train_df = pd.DataFrame(columns=columns)
     validation_df = pd.DataFrame(columns=columns)
@@ -66,6 +73,12 @@ def split(df, train_split=60, val_split=20, test_split=20):
                                 validation_df.append(row.copy(), ignore_index=True)
                         else: # Only Walking1 for subject, emotion at that intensity
                             test_df.append(row.copy(), ignore_index=True)
+
+    ''' Write datasets to data/ '''
+    train_df.to_hdf('../data/train_data.h5', key='df', mode='w')
+    validation_df.to_hdf('../data/validation_data.h5', key='df', mode='w')
+    test_df.to_hdf('../data/test_data.h5', key='df', mode='w')
+
 
 
 
