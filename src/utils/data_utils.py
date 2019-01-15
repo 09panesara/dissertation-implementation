@@ -54,6 +54,7 @@ def load_data(folder='../../data'):
 
 
 def get_timestep(videos_dir):
+    print('Generating timesteps...')
     vid_list = list(glob.iglob(videos_dir + '/*.wmv'))
 
     timesteps = {}
@@ -71,12 +72,13 @@ def get_timestep(videos_dir):
             timesteps[subject][action] = {}
         if emotion not in timesteps[subject][action]:
             timesteps[subject][action][emotion] = {}
-        assert intensity not in timesteps[subject][action][emotion][intensity]
+        assert intensity not in timesteps[subject][action][emotion]
 
         timesteps[subject][action][emotion][intensity] = VideoFileClip(video).duration / 30 # divide by 30 fps to get fps
 
-
+    print('Done')
     return timesteps
+
 
 if __name__ == '__main__':
     join_3d_keypoints('../../VideoPose3D/output/keypoints')
