@@ -80,6 +80,7 @@ def split(df, train_split=60, val_split=20, test_split=20):
     test_df.to_hdf('../data/test_data.h5', key='df', mode='w')
 
 
+def cross_validation(k, train_split=80, test_split=20):
 
 
 

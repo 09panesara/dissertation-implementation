@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import h5py
 import os
-import sys
+import math
 
 
 def normalise_keypoints(keypoints):
@@ -14,7 +14,6 @@ def normalise_keypoints(keypoints):
     :return:
     '''
     keypoints = np.array(keypoints)
-    print(keypoints[:5])
 
     # Translate body to set hip center at origin of landmark
     normalised_kpts = keypoints - np.tile(keypoints[:, :1], [17, 1])
@@ -47,7 +46,7 @@ def dist_btwn_vectors(a, b):
     return np.linalg.norm(a-b)
 
 def dist_btwn_pt_and_axis(x, p1, p2):
-    return 
+    return np.cross(p2-p1,x-p1)/np.linalg.norm(p2-p1)
     
 def _mean(x, y):
     return (x+y)/2;
@@ -87,12 +86,18 @@ def generate_LMA_features(keypoints, timestep_between_frame):
 
     # dist between left/right knees and axis binding center of knees and center of feet
     knee_centers = [_mean(frame[joints['LKnee']], frame[joints['RKnee']]) for frame in keypoints]
-    d_LKnee_center = [dist_btwn_vectors(frame[joints['LKnee']], knee_centers[t], feet_centers[t]) for t, frame in enumerate(keypoints)]
-    d_RKnee_center = [dist_btwn_vectors(frame[joints['RKnee']], knee_centers[t], feet_centers[t]) for t, frame in enumerate(keypoints)]
+    d_LKnee_center = [dist_btwn_pt_and_axis(frame[joints['LKnee']], knee_centers[t], feet_centers[t]) for t, frame in enumerate(keypoints)]
+    d_RKnee_center = [dist_btwn_pt_and_axis(frame[joints['RKnee']], knee_centers[t], feet_centers[t]) for t, frame in enumerate(keypoints)]
 
-    LMA_vector['dys_hands'] = np.divide(d_LWrist_center, np.sum(d_LWrist_center, d_RWrist_center)) # TODO: replace with non-dominant hand/knee/foot
-    LMA_vector['dys_knees'] = np.divide(d_LKnee_center, np.sum(d_LKnee_center, d_RKnee_center))
-    LMA_vector['dys_feet'] =  np.divide(d_LFoot_center, np.sum(d_LFoot_center, d_RFoot_center))
+    d_LWrist_center = np.array(d_LWrist_center)
+    d_RWrist_center = np.array(d_RWrist_center)
+    d_LKnee_center = np.array(d_LKnee_center)
+    d_RKnee_center = np.array(d_RKnee_center)
+    d_LFoot_center = np.array(d_LFoot_center)
+    d_RFoot_center = np.array(d_RFoot_center)
+    LMA_vector['dys_hands'] = np.divide(d_LWrist_center, d_LWrist_center + d_RWrist_center) # TODO: replace with non-dominant hand/knee/foot
+    LMA_vector['dys_knees'] = np.divide(d_LKnee_center, d_LKnee_center + d_RKnee_center)
+    LMA_vector['dys_feet'] =  np.divide(d_LFoot_center, d_LFoot_center + d_RFoot_center)
 
 
     LMA_vector['d_LWrist_LShoulder'] = [dist_btwn_vectors(frame[joints['LWrist']], frame[joints['LShoulder']]) for frame in keypoints]
@@ -109,13 +114,13 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     (Weight) vertical (y) components of velocity and acceleration sequences associated with joints 
     '''
 
-    velocity = [frame - keypoints[t-1] if t > 0 else [0.0, 0.0, 0.0] for t, frame in enumerate(keypoints)]
+    velocity = np.array([frame - keypoints[t-1] if t > 0 else np.zeros((17, 3)) for t, frame in enumerate(keypoints)])
     velocity = np.divide(velocity, timestep_between_frame) # TODO: check are floats, should be
 
-    accel = [v[t]-velocity[t-1] if t > 0 else [0.0, 0.0, 0.0] for t, v in enumerate(velocity)]
+    accel = np.array([v-velocity[t-1] if t > 0 else np.zeros((17, 3)) for t, v in enumerate(velocity)])
     accel = np.divide(accel, timestep_between_frame)
 
-    flow = [a[t] - accel[t-1] if t > 0 else [0.0, 0.0, 0.0] for t, a in enumerate(accel)]
+    flow = np.array([a - accel[t-1] if t > 0 else np.zeros((17, 3)) for t, a in enumerate(accel)])
     flow = np.divide(flow, timestep_between_frame)
 
     velocity = [joint_veloc[1] for frame in velocity for joint_veloc in frame]
@@ -134,8 +139,8 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     OR ampltiude difference between knees, hips, shoulders, hands, feet respectively
     '''
 
-    C_t = [(np.absolute(keypoints[frame[joints['Hip']]] - keypoints[frame[joints['LWrist']]]) +
-            np.absolute(keypoints[frame[joints['Hip']]] - keypoints[frame[joints['RWrist']]])
+    C_t = [(np.absolute(frame[joints['Hip']] - frame[joints['LWrist']]) +
+            np.absolute(frame[joints['Hip']] - frame[joints['RWrist']])
             ) / 2 for frame in keypoints]
 
     spread_enclos_measure = [[dist_btwn_pt_and_axis(joint, frame[joints['Head']], frame[joints['Spine']]) for joint in frame] for t, frame in enumerate(keypoints)] # TODO: come back to and check it works fine with repeating vert_axis for distance
@@ -158,7 +163,7 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     '''
     Space: elbow forward-backward motion, forward tilt angle 
     '''
-    forward_tilt_angle = [calculate_angle([0, 1, 0], frame[joints['Hip']]-frame[joints['Head']]) for frame in keypoints]
+    forward_tilt_angle = [calculate_angle(np.array([0, 1, 0]), frame[joints['Hip']]-frame[joints['Head']]) for frame in keypoints]
     LElbow_fb_motion = [dist_btwn_vectors(frame[joints['LElbow']],keypoints[i-1][joints['LElbow']]) if i > 0 else 0 for i, frame in enumerate(keypoints)]
     RElbow_fb_motion = [dist_btwn_vectors(frame[joints['RElbow']],keypoints[i-1][joints['RElbow']]) if i > 0 else 0 for i, frame in enumerate(keypoints)]
 
@@ -199,7 +204,7 @@ joints = {
 joints_by_index = list(joints.keys())
 timesteps_path = '../data/timesteps.npz'
 if os.path.isfile(timesteps_path):
-    timesteps = np.load(timesteps_path, encoding='latin1')['timesteps']
+    timesteps = np.load(timesteps_path, encoding='latin1')['timesteps'].item()
 else:
     timesteps = data_utils.get_timestep('../VideoPose3D/videos/walking_videos')  # float
     np.savez_compressed(timesteps_path, timesteps=timesteps)
@@ -209,13 +214,10 @@ for subject in keypoints_3d:
     for action in keypoints_3d[subject]:
         for emotion in keypoints_3d[subject][action]:
             for intensity in keypoints_3d[subject][action][emotion]:
-                # print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
+                print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
                 LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
-                keypoints = keypoints_3d[subject][action][emotion][intensity]
-                LMA_features.update(generate_LMA_features(keypoints, timestep_between_frame=timesteps[subject][action][emotion][intensity]))
-                LMA_df.append(LMA_features, ignore_index=True)
-
-
+                LMA_features.update(generate_LMA_features(keypoints_3d[subject][action][emotion][intensity], timestep_between_frame=timesteps[subject][action][emotion][intensity]))
+                LMA_df = LMA_df.append(LMA_features, ignore_index=True)
 
 # Write pandas dataframe to compressed h5.py file
 LMA_df.to_hdf('../data/LMA_features.h5', key='df', mode='w')

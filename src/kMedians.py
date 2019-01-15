@@ -1,9 +1,9 @@
 import numpy as np
 from sklearn.utils import check_random_state
-from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances
+from sklearn.metrics.pairwise import euclidean_distances
 from scipy.spatial.distance import euclidean
 
-class kMedians():
+class kmedians():
     def __init__(self, k, max_iter=100, random_state=0):
         self.k = k
         self.max_iter = max_iter
@@ -45,7 +45,7 @@ class kMedians():
 
         return self
 
-    def _euclidiean_dist(self, x, y):
+    def _euclidean_dist(self, x, y):
         return euclidean(x, y)**2
 
     def _check_validity(self):
@@ -60,7 +60,7 @@ class kMedians():
         intra =  class_compactness/self.total_no_frames
 
         median_distances = list(set(self.cluster_centers_))
-        distances = [[self._euclidiean_dist(x, median_distances[j]) for j in range(k+1, self.k)] for k, x in enumerate(median_distances)]
+        distances = [[self._euclidean_dist(x, median_distances[j]) for j in range(k + 1, self.k)] for k, x in enumerate(median_distances)]
 
         inter = np.argmin(distances, axis=0)
 
