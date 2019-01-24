@@ -1,5 +1,5 @@
 openpose/
-diss/
+diss/*
 VideoPose3D/CODE_OF_CONDUCT.md			
 VideoPose3D/CONTRIBUTING.md				
 VideoPose3D/images
@@ -12,4 +12,4 @@ VideoPose3D/__pycache__
 VideoPose3D/checkpoint				
 VideoPose3D/videos
 VideoPose3D/common
-
+*.pyc

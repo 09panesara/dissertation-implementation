@@ -3,6 +3,7 @@ from sklearn.datasets import make_blobs
 import numpy as np
 from src.kMedians import kmedians
 from scipy.spatial.distance import euclidean
+from itertools import combinations
 
 def _set_multid(x):
     return set(tuple(item) for item in x)
@@ -46,45 +47,44 @@ def test_validity():
     assert round(validity, 3) == round(169 / 2100, 3)
 
 
-def _accuracy_metrics(predicted, actual):
+def _in_same_cluster(x, y, ground_truth):
+    for cluster in ground_truth:
+        for pair in cluster:
+            if (x in pair) and (y in pair):
+                return True
+    return False
+
+def _accuracy_metrics(predicted, ground_truth):
     '''
     precision = tp / (tp+fp)
     recall = tp / (tp+fn)
     f1score = 2 * precision * recall / (precision + recall)
     '''
-    count_tp = [[x for x in cluster if x in actual[i]] for i, cluster in enumerate(predicted)]
-    count_tp = len([item for sublist in count_tp for item in sublist])
-    count_fp = [[x for x in cluster if x not in actual[i]] for i, cluster in enumerate(predicted)]
-    count_fp = len([item for sublist in count_fp for item in sublist])
-    count_fn = [[x for x in actual if x not in predicted[i]] for i, cluster in enumerate(actual)]
-    count_fn = len([item for sublist in count_fn for item in sublist])
 
-    precision = count_tp / (count_tp + count_fp)
-    recall = count_tp / (count_tp + count_fn)
+    '''
+    To evaluate the clustering results, precision, recall, and F-measure were calculated over pairs of points. 
+    For each pair of points that share at least one cluster in the overlapping clustering results, 
+    these measures try to estimate whether the prediction of this pair as being in the same cluster was correct 
+    with respect to the underlying true categories in the data. Precision is calculated as the fraction of pairs correctly 
+    put in the same cluster, recall is the fraction of actual pairs that were identified, 
+    and F-measure is the harmonic mean of precision and recall.'''
+
+    predicted_pairs = [list(combinations(cluster, 2)) for cluster in predicted]
+    gt_pairs = [list(combinations(cluster, 2)) for cluster in ground_truth]
+
+    TP_PLUS_FP = np.sum([len(cluster) for cluster in predicted_pairs])
+    TP = np.sum([np.sum([1 for x, y in pairs for pairs in predicted_cluster if _in_same_cluster(x, y, predicted_cluster)]) for predicted_cluster in predicted])
+    # TP = np.sum([np.sum([1 for x, y in predicted_cluster if _in_same_cluster(x, y, gt_pairs)]) for predicted_cluster in predicted_pairs])
+    FP = TP_PLUS_FP - TP
+    FN = np.sum([np.sum([1 for x, y in gt_cluster if not _in_same_cluster(x, y, predicted_pairs)]) for gt_cluster in gt_pairs])
+
+
+    precision = TP / (TP + FP)
+    recall = TP / (TP + FN)
     f1score = 2 * precision * recall / (precision + recall)
     return precision, recall, f1score
 
 
-
-def _get_number_common_items(a, b):
-    return len(list(_set_multid(a).intersection(_set_multid(b))))
-
-def _get_corresponding_clusters(predicted, actual):
-    actual_ordered = []
-
-    for i, pred_cluster in enumerate(predicted):
-        curr_highest_in_common = 0
-        curr_act_cluster_index = 0
-        for j, act_cluster in enumerate(actual):
-            no_common_items = _get_number_common_items(pred_cluster, act_cluster)
-            if j not in actual_ordered and no_common_items > curr_highest_in_common:
-                curr_highest_in_common = no_common_items
-                curr_act_cluster_index = j
-        actual_ordered.append(curr_act_cluster_index)
-
-    actual = np.array(actual)
-    actual_ordered = actual[actual_ordered]
-    return predicted, actual_ordered
 
 
 def test_k_medians():
@@ -97,7 +97,6 @@ def test_k_medians():
     predicted_clusters = k_medians._get_clusters(X)
     actual_clusters = np.array([[x for j, x in enumerate(X) if y[j]==i] for i in range(no_centers)])
 
-    predicted_clusters, actual_clusters = _get_corresponding_clusters(predicted_clusters, actual_clusters)
     precision, recall, f1score = _accuracy_metrics(predicted_clusters, actual_clusters)
     assert precision >= 0.7
     assert recall >= 0.6
