@@ -13,3 +13,4 @@ VideoPose3D/checkpoint
 VideoPose3D/videos
 VideoPose3D/common
 *.pyc
+src/archive/
