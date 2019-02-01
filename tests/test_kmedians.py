@@ -50,7 +50,7 @@ def test_validity():
 def _in_same_cluster(x, y, ground_truth):
     for cluster in ground_truth:
         for pair in cluster:
-            if (x in pair) and (y in pair):
+            if np.isin(x, pair).all() and np.isin(y, pair).all():
                 return True
     return False
 
@@ -73,10 +73,10 @@ def _accuracy_metrics(predicted, ground_truth):
     gt_pairs = [list(combinations(cluster, 2)) for cluster in ground_truth]
 
     TP_PLUS_FP = np.sum([len(cluster) for cluster in predicted_pairs])
-    TP = np.sum([np.sum([1 for x, y in pairs for pairs in predicted_cluster if _in_same_cluster(x, y, predicted_cluster)]) for predicted_cluster in predicted])
-    # TP = np.sum([np.sum([1 for x, y in predicted_cluster if _in_same_cluster(x, y, gt_pairs)]) for predicted_cluster in predicted_pairs])
+    TP = [[1 for pair in predicted_cluster if _in_same_cluster(pair[0], pair[1], gt_pairs)] for predicted_cluster in predicted_pairs]
+    TP = np.sum([np.sum(arr) for arr in TP])
     FP = TP_PLUS_FP - TP
-    FN = np.sum([np.sum([1 for x, y in gt_cluster if not _in_same_cluster(x, y, predicted_pairs)]) for gt_cluster in gt_pairs])
+    FN = np.sum([np.sum([1 for pair in gt_cluster if not _in_same_cluster(pair[0], pair[1], predicted_pairs)]) for gt_cluster in gt_pairs])
 
 
     precision = TP / (TP + FP)
@@ -102,7 +102,10 @@ def test_k_medians():
     assert recall >= 0.6
     assert f1score >= 0.5
     print(precision, recall, f1score)
-
+    ''' 
+    Test 1:
+    .0.7151310228233305 0.705 0.7100293747377255
+    '''
 
 
 

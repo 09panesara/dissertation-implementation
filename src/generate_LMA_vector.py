@@ -201,23 +201,21 @@ joints = {
     'RWrist': 16
 }
 
+
+
 joints_by_index = list(joints.keys())
-timesteps_path = '../data/timesteps.npz'
-if os.path.isfile(timesteps_path):
-    timesteps = np.load(timesteps_path, encoding='latin1')['timesteps'].item()
-else:
-    timesteps = data_utils.get_timestep('../VideoPose3D/videos/walking_videos')  # float
-    np.savez_compressed(timesteps_path, timesteps=timesteps)
+timesteps = data_utils.get_timestep(timesteps_path='../data/timesteps.npz', videos_dir='../VideoPose3D/videos/walking_videos')  # float
 
 
 for subject in keypoints_3d:
     for action in keypoints_3d[subject]:
         for emotion in keypoints_3d[subject][action]:
             for intensity in keypoints_3d[subject][action][emotion]:
-                print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
-                LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
-                LMA_features.update(generate_LMA_features(keypoints_3d[subject][action][emotion][intensity], timestep_between_frame=timesteps[subject][action][emotion][intensity]))
-                LMA_df = LMA_df.append(LMA_features, ignore_index=True)
+                for i, kpts in enumerate(keypoints_3d[subject][action][emotion][intensity]):
+                    print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
+                    LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
+                    LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timesteps[subject][action][emotion][intensity][i]))
+                    LMA_df = LMA_df.append(LMA_features, ignore_index=True)
 
 # Write pandas dataframe to compressed h5.py file
 LMA_df.to_hdf('../data/LMA_features.h5', key='df', mode='w')

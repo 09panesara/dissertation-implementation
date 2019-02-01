@@ -1,29 +1,15 @@
 import simplejson as json
 from collections import Counter
 import numpy as np
-from numpy import ma
-from pykalman import KalmanFilter
+import glob
+import os
+import shutil
 import ast
+import re
 
 class ProcessOpenPose2DData():
-    def __init__(self, processFromStart=False, read_checkpoints=True):
-
-        if processFromStart:
-            with open('../openpose/output/jsonfiles.txt', 'r') as f:
-                json_filenames = f.readlines()
-            self.json_filenames = [filename[:-1] for filename in json_filenames]  # Remove \n character from filenames
-
-            with open('../openpose/data/walking/video_filenames.txt', 'r') as f2:
-                video_filenames = f2.readlines()
-            self.video_filenames = [filename[:-5] for filename in video_filenames]  # Remove \n character from filenames
-
-            self.files = [[json_file for json_file in json_filenames if json_file.startswith(file)] for file in
-                          self.video_filenames]
-
-            self.initial_process_of_data()
-        else:
-            with open('json_data.txt', 'r') as f:
-                self.json_data = ast.literal_eval(f.read())
+    def __init__(self, kpts_dir='../data/openpose_output'):
+        self.keypoints_dir = kpts_dir
 
         self.keypoint_mapping = [
             "Nose",
@@ -52,41 +38,99 @@ class ProcessOpenPose2DData():
             "RSmallToe",
             "RHeel"]
 
-        self.no_videos = len(self.json_data)
-        if read_checkpoints:
-            with open('keypoints.txt', 'r') as f:
-                self.keypoints = ast.literal_eval(f.read())
+        self.no_videos = 563
 
 
+    def remove_empty_openpose_kpts(self, remove_occluded_at_end=True):
+        print('Cleaning openpose keypoints')
 
-    def initial_process_of_data(self):
-        # Filter out json files that are empty, providing all following are empty
-        self.json_data = [['../openpose/output/' + filename for filename in file_set] for file_set in self.files]
-        non_empty_jsons = []
-        for fileset in self.json_data:
-            non_empty_set = []
-            for file in fileset:
-                with open(file, 'r') as f:
+        directories = sorted([self.keypoints_dir + "/" + name for name in os.listdir(self.keypoints_dir) if os.path.isdir(self.keypoints_dir + "/" + name)])
+        json_data = []
+        for directory in directories:
+            print('Processing ' + directory)
+            kpts_list = sorted(list(glob.iglob(directory + '/*.json')))
+            # Filter out json files that are empty, providing all following are empty
+            non_empty_jsons = []
+
+            # Are there any keypoints collected for json files with < 25 joints c
+            without_25 = []
+            occluded = []
+
+            for kpts_json in kpts_list:
+                with open(kpts_json, 'r') as f:
                     data = json.load(f)
                 if data['people'] != []:
-                    non_empty_set.append(file)
-                f.close()
-            non_empty_jsons.append(non_empty_set)
-        self.json_data = non_empty_jsons
-
-        # Are there any keypoints collected for json files with < 25 joints
-        without_25 = []
-        for fileset in self.json_data:
-            for file in fileset:
-                f = open(file, 'r')
-                data = json.load(f)
-                if len(data['people'][0]['pose_keypoints_2d']) != 75:
-                    without_25.append(file, len(data['people'][0]['pose_keypoints_2d']))
-                f.close()
-        print('No. keypoint sets without 25 keypoints collected ' + str(len(without_25)))  # 0
+                    non_empty_jsons.append(kpts_json)
+                    if len(data['people'][0]['pose_keypoints_2d']) != 75:
+                        without_25.append(kpts_json, len(data['people'][0]['pose_keypoints_2d']))
+                        f.close()
+                    if self._count_occluded_kpts(data['people'][0]['pose_keypoints_2d']) > 12: # If more than half of joints were occluded
+                        occluded.append(kpts_json)
+                else:
+                    f.close()
+                    print("Removing " + kpts_json + ' ...')
+                    os.remove(kpts_json)
 
 
-    def check_keypoints(filename):
+
+            json_data.append(non_empty_jsons)
+            print('Occluded')
+            print(occluded)
+
+            occluded_kpt_numbers = [int(frame[-19:-15]) for frame in occluded]
+            # Remove those with consecutive frames in a row where openpose fails that are near the end
+            if remove_occluded_at_end and len(occluded) > 0:
+                ''' TODO test'''
+                kpts_file_base = occluded[0][:-18]
+                self._remove_end_occluded_frames(kpts_file_base, occluded_kpt_numbers, last_kpt_no=int(non_empty_jsons[-1][-19:-15]))
+
+            # Interpolate rest
+
+
+
+            # # Remove frames where <= 2 frames in a row that have over half of joints occluded
+            # occluded = [occluded[i] for i, frame_no in enumerate(occluded_kpt_numbers) if not((frame_no-1) in occluded_kpt_numbers or (frame_no+1) in occluded_kpt_numbers)]
+
+            # Any keypoints with wrong number of keypoints - NO
+            if len(without_25) > 0:
+                print('No. keypoint sets without 25 keypoints collected ' + str(len(without_25)))
+
+
+    ''' TODO: test'''
+    def _remove_end_occluded_frames(self, file_base, occluded_kpt_numbers, last_kpt_no):
+        remove = [kpt_no for kpt_no in occluded_kpt_numbers if kpt_no in range(last_kpt_no-10, last_kpt_no)]
+        if remove != []:
+            remove_from = remove[0]
+            kpts_to_remove = [file_base + (3-len(str(i)))*'0' + str(i) + '_keypoints.json' for i in range(remove_from, last_kpt_no+1)]
+            for kpts_json in kpts_to_remove:
+                print('Removing ' + kpts_json)
+                try:
+                    os.remove(kpts_json)
+                except:
+                    print('No such file - possibly already removed')
+
+
+
+    def _count_occluded_kpts(self, kpts):
+        ''' Count number of keypoints not collected due to occlusion/noise/etc
+        :kpts: takes loaded keypoints json data
+        :return: number of occluded joints
+        '''
+        counts = Counter(kpts)
+        no_zeros = int(counts[0] / 3)
+        return no_zeros
+
+    def _interpolate(self):
+        '''
+        For missing frames i.e. 3 consecutive 0's, get previous frames that were missing
+        :return:
+        '''
+        directories = [self.keypoints_dir + "/" + name for name in os.listdir(self.keypoints_dir) if
+                       os.path.isdir(self.keypoints_dir + "/" + name)]
+        for directory in directories:
+            kpts_list = sorted(list(glob.iglob(directory + '/*.json')))
+
+    def _check_keypoints(self, filename):
         f = open(filename, 'r')
         data = json.load(f)
         if data['people'] != []:
@@ -95,7 +139,7 @@ class ProcessOpenPose2DData():
             pose_keypoints = []
         return pose_keypoints
 
-    def generate_empty_keypoints_dict(to_examine, to_examine_files):
+    def generate_empty_keypoints_dict(self, to_examine, to_examine_files):
         empty_keypoints = {}
         for i, fileset in enumerate(to_examine_files):
             curr_empty_keypoints = []
@@ -108,17 +152,13 @@ class ProcessOpenPose2DData():
             empty_keypoints[to_examine[i]] = curr_empty_keypoints
         return empty_keypoints
 
-    def remove_empty_keypoints(self):
-        empty_keypoints = self.generate_empty_keypoints_dict()
-        new_json_data = [[keypoint for keypoint in self.json_data[i] if keypoint not in empty_keypoints[i]] for i in
-                         range(self.no_videos)]
 
-    def check_keypoints_in_range(self, file_prefix, start_no, end_no):
+    def _check_keypoints_in_range(self, file_prefix, start_no, end_no):
         for i in range(start_no, end_no + 1):
-            filename = file_prefix + str(i) + '_keypoints.json'
-            self.check_keypoints(filename)
+            filename = self.keypoints_dir + '/' + file_prefix + '/' + file_prefix + (12-len(start_no))*'0' + str(i) + '_keypoints.json'
+            self._check_keypoints(filename)
 
-    def check_all_no_keypoints(self, file_prefix, start_no, end_no):
+    def _check_all_no_keypoints(self, file_prefix, start_no, end_no):
         for i in range(start_no, end_no):
             filename = file_prefix + str(start_no) + '_keypoints.json'
             f = open(filename, 'r')
@@ -127,93 +167,55 @@ class ProcessOpenPose2DData():
                 print("false")
                 return
 
-    def get_frame_w_more_than_k_zeros(filename, k):
-        f = open(filename, 'r')
-        data = json.load(f)
-        pose_keypoints = data['people'][0]['pose_keypoints_2d']
-        counts = Counter(pose_keypoints)
-        no_zeros = int(counts[0]/3)
-        return no_zeros > k
 
-
-    def find_first_na_data(self):
-        is_continuous_na = []
-        first_na_data = []  # Stores indexes of first occurrance of file per video set that has no keypoints data
-        json_data = self.json_data
-        for fileset in json_data:
-            seen_na = False
-            for i, file in enumerate(fileset):
-                with open(file, 'r') as f:
-                    data = json.load(f)
-                if seen_na and data['people'] != []:
-                    seen_na = False
-                    f.close()
-                    break
-                if not (seen_na) and data['people'] == []:  # first empty keypoints json found, set in first_na_data
-                    seen_na = True
-                    first_na_data.append(i)
-                f.close()
-            is_continuous_na.append(seen_na)
-
-        # Get rid of continuous NA keypoints
-        no_videos = self.no_videos
-        new_json_data = []
-        for i in range(no_videos):
-            curr_data = []
-            if is_continuous_na[i]:  # get rid of first occurance of keypoints.json with no keypoints - last keypoints file for that fileset
-                new_json_data.append([json_data[i][j] for j in range(first_na_data[i])])
-            else:
-                new_json_data.append(json_data[i])
-        return first_na_data, new_json_data
-
-    def remove_end_na_data(self):
-        first_na_data, new_json_data = self.find_first_na_data(self.json_data).split()
-        # json_data = self.json_data
-        # to_examine = [i for i, fileset in enumerate(new_json_data) if json_data[i][first_na_data[i]] in fileset]
-        to_examine_new = [37, 41, 100, 140, 149, 175, 221, 222, 228, 240, 241, 242, 246, 247, 266, 279, 281, 293, 294,
-                          308, 312]
-
-        new_json_data = [self.json_data[i][:first_na_data[i]] if (i in self.empty_keypoints and i not in to_examine_new) else self.json_data[i] for
-            i in range(self.no_videos)]
-        self.json_data = new_json_data
-
-    def write_back(filename, data):
+    def _write_back(filename, data):
         with open(filename, 'w') as f:
             f.write(str(data))
 
 
 
-    def delete_frames_w_more_than_half_zeros(self):
-        frames_to_delete = [[keypoint for keypoint in output if self.check_keypoints(keypoint).count(0)>37] for output in self.json_data]
-        new_json_data = [[keypoint for keypoint in self.json_data[i] if keypoint not in frames_to_delete[i]] for i in
-                        range(self.no_videos)]
-        keypoints = [[self.check_keypoints(keypoint_filename).flatten() for keypoint_filename in video_keypoints] for
-                     video_keypoints in new_json_data]
-        self.json_data = new_json_data
-
-        self.write_back('json_data.txt', new_json_data) # Intermediary writeback
 
 
-    def apply_kf_to_missing(self):
-        # Treat remaining empty keypoints as full NAs we need to replace using kalman filter
-        # keypoints = self.keypoints
-        # keypoints = [[[item if item!=0 or isinstance(item, float) else np.ma for item in video_keypoints] for video_keypoints in video] for video in keypoints]
-        # # anything with 0 =noise, 0.0 = actual angle
-        # # self.write_back('keypoints.txt', keypoints)
-        # self.keypoints = keypoints
-        keypoints = self.keypoints
-        keypoints = np.ma.asarray(keypoints)
-        # Replace nans with ma.masked
-        keypoints = [[[item if item != 0 or isinstance(item, float) else ma.masked for item in video_keypoints] for video_keypoints in video] for video in keypoints]
-        kf = KalmanFilter.em(X=keypoints, n_iter=5)
-        (filtered_state_means, filtered_state_covariances) = kf.filter(measurements)
-        (smoothed_state_means, smoothed_state_covariances) = kf.smooth(measurements)
-        return
+    # def apply_kf_to_missing(self):
+    #     # Treat remaining empty keypoints as full NAs we need to replace using kalman filter
+    #     # keypoints = self.keypoints
+    #     # keypoints = [[[item if item!=0 or isinstance(item, float) else np.ma for item in video_keypoints] for video_keypoints in video] for video in keypoints]
+    #     # # anything with 0 =noise, 0.0 = actual angle
+    #     # # self.write_back('keypoints.txt', keypoints)
+    #     # self.keypoints = keypoints
+    #     keypoints = self.keypoints
+    #     keypoints = np.ma.asarray(keypoints)
+    #     # Replace nans with ma.masked
+    #     keypoints = [[[item if item != 0 or isinstance(item, float) else ma.masked for item in video_keypoints] for video_keypoints in video] for video in keypoints]
+    #     kf = KalmanFilter.em(X=keypoints, n_iter=5)
+    #     (filtered_state_means, filtered_state_covariances) = kf.filter(measurements)
+    #     (smoothed_state_means, smoothed_state_covariances) = kf.smooth(measurements)
+    #     return
 
+
+    def _filter_by_highest_intensity(self):
+        directories = sorted([self.keypoints_dir + "/" + name for name in os.listdir(self.keypoints_dir) if
+                              os.path.isdir(self.keypoints_dir + "/" + name)])
+        filtered_dir_path = self.keypoints_dir + '/../' + 'filtered_openpose'
+        if not os.path.isdir(filtered_dir_path):
+            os.mkdir(filtered_dir_path)
+        filtered_directories = []
+        emotions = ['ang', 'fea', 'hap', 'neu', 'sad', 'unt']
+        print('Filtering keypoints...')
+        for i in range(30):
+            for emotion in emotions:
+                dirs = [directory for directory in directories if emotion in directory and (str(i) + 'm' in directory or str(i) + 'f' in directory)]
+                intensity = [re.findall('\d\.\d', os.path.basename(dir))[0] for dir in dirs]
+                dirs = [dir for i, dir in enumerate(dirs) if float(intensity[i]) >= 5]
+                filtered_directories += dirs
+        print('Copying keypoints...')
+        for filtered_dir in filtered_directories:
+            shutil.copytree(filtered_dir, filtered_dir_path + "/" + os.path.basename(filtered_dir))
 
 
 
 processOpenPose = ProcessOpenPose2DData()
-processOpenPose.apply_kf_to_missing()
-print(processOpenPose.keypoints[0])
+# processOpenPose.remove_empty_openpose_kpts()
+processOpenPose._filter_by_highest_intensity()
+
 
