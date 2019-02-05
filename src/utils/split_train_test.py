@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import pandas as pd
 import random
+from skmultilearn.model_selection import iterative_train_test_split
 
 NO_OF_VIDEOS = 563
 
@@ -12,12 +13,12 @@ split data into 80:20 training test
 Then split training into 80:20 train, test 5 times for cross-validation 
 '''
 
-def split(df, train_split=60, val_split=20, test_split=20):
+def split(df, train_size=60, val_size=20, test_size=20):
     '''
-    Takes keypoints (OR LMA file?) containing feature vectors, splits into training, validation and test set with:
+    Takes LMA file containing feature vectors, splits into training, validation and test set with:
     - roughly equal proportion of each emotion
     - roughly equal number of each actor
-    :return: train, validation, test set
+    saves train, validation, test set
     '''
     # Shuffle order of rows
     df = df.reindex(np.random.permutation(df.index))
@@ -28,12 +29,12 @@ def split(df, train_split=60, val_split=20, test_split=20):
     test_df = pd.DataFrame(columns=columns)
 
     df_len = NO_OF_VIDEOS
-    train_val_test_split_total = train_split+val_split+test_split
-    train_split = int(train_split/train_val_test_split_total * df_len)
-    val_split = int(val_split/train_val_test_split_total * df_len)
-    test_split = int(test_split/train_val_test_split_total * df_len)
+    train_val_test_split_total = train_size + val_size + test_size
+    train_size = int(train_size / train_val_test_split_total * df_len)
+    val_size = int(val_size / train_val_test_split_total * df_len)
+    test_size = int(test_size / train_val_test_split_total * df_len)
 
-    train_split += df_len - (train_split + val_split + test_split)
+    train_size += df_len - (train_size + val_size + test_size)
 
 
     emotions = set(df['emotion'])
@@ -79,6 +80,41 @@ def split(df, train_split=60, val_split=20, test_split=20):
     validation_df.to_hdf('../data/validation_data.h5', key='df', mode='w')
     test_df.to_hdf('../data/test_data.h5', key='df', mode='w')
 
+def split_train_test(df, train_size=80, test_size=20):
+    def _convert_index_to_subj_emotion(y):
+        y = [subjects[y[0]-1], emotions[y[1]]]
+        return y
+
+    emotions = ['ang', 'fea', 'hap', 'neu', 'sad', 'unt']
+    subjects = ['1m', '2f', '3m', '4f', '5m', '6f', '7f', '8m', '9f', '10f', '11f', '12m', '13f', '14f', '15m', '16f',
+                '17f', '18f', '19m', '20f', '21m', '22f', '23f', '24f', '25m', '26f', '27m', '28f', '29f']
+    emotions_dict = {emotions[i]: int(i) for i in range(6)}
+    subjects_dict = {subjects[i]: int(i + 1) for i in range(29)}
+    y_classes = ['subject', 'emotion']
+    y = df[y_classes]
+
+    y['subject'] = y['subject'].map(subjects_dict)
+    y['emotion'] = y['emotion'].map(emotions_dict)
+    y = np.array(y)
+
+    X = df.drop(y_classes, axis=1)
+    columns = X.columns.values
+    X = np.array(X)
+    columns = np.append(columns, y_classes)
+
+    assert len(X) == len(y)
+
+    X_train, y_train, X_test, y_test = iterative_train_test_split(X, y, test_size=test_size/(test_size+train_size))
+    y_train = np.apply_along_axis(_convert_index_to_subj_emotion, 1, y_train)
+    y_test = np.apply_along_axis(_convert_index_to_subj_emotion, 1, y_test)
+
+    train_df = pd.DataFrame(data=np.hstack((X_train, y_train)), columns=columns)
+    test_df = pd.DataFrame(data=np.hstack((X_test, y_test)), columns=columns)
+
+    train_df.to_hdf('../data/train_data.h5', key='df', mode='w')
+    test_df.to_hdf('../data/test_data.h5', key='df', mode='w')
+    return train_df, test_df
+
 
 
 def stratified_split(X, y, folds=5):
@@ -105,8 +141,10 @@ def stratified_split(X, y, folds=5):
     classes = [y[index] for index in index_list]
     return folds, classes
 
+
 if __name__ == '__main__':
-    # X = np.array([[]])
+    X = np.array([[]])
+
     y = np.array([['sad', '29f'], ['sad', '29f'], ['sad', '28m'], ['ang', '28m'], ['ang', '01m'], ['unt', '01m'], ['fea', '01m'], ['fea', '28m'], ['fea', '23m']])
     emotions = {'ang': 0, 'fea': 1, 'hap': 2, 'neu': 3, 'sad': 4, 'unt': 5}
     y = np.array([np.array([emotions[labels[0]], int(labels[1][:-1])]) for labels in y])
@@ -114,3 +152,5 @@ if __name__ == '__main__':
     print('Folds are')
     folds = [y[index] for index in index_list]
     print(folds)
+
+

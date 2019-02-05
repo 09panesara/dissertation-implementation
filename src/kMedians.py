@@ -1,8 +1,10 @@
 import numpy as np
+import pandas as pd
 from sklearn.utils import check_random_state
 from sklearn.metrics.pairwise import euclidean_distances
 from scipy.spatial.distance import euclidean
-import random
+from sklearn.decomposition import PCA
+from matplotlib import pyplot as plt
 
 class kmedians():
     def __init__(self, k, no_frames, max_iter=100, random_state=0):
@@ -79,3 +81,34 @@ class kmedians():
         clusters = [np.array([X[i] for i in sublist]) for sublist in clusters_indices]
 
         return np.array(clusters)
+
+    def _get_cmap(n, name='hsv'):
+        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+        RGB color; the keyword argument name must be a standard mpl colormap name.'''
+        return plt.cm.get_cmap(name, n)
+
+    def _visualise_clusters(self, clusters):
+        flat_clusters = [pt for cluster in clusters for pt in cluster]
+        cmap = self._get_cmap(len(clusters))
+
+        labels = [[cmap[i] for j in range(len(cluster))] for i, cluster in enumerate(clusters)]
+        labels = [l for label_arr in labels for l in label_arr]
+
+        pca = PCA(n_components=2).fit(clusters)
+        pca_2d = pca.transform(clusters)
+        principalDf = pd.DataFrame(data=pca_2d
+                                   , columns=['principal component 1', 'principal component 2'])
+
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(1, 1, 1)
+        ax.set_xlabel('Principal Component 1', fontsize=15)
+        ax.set_ylabel('Principal Component 2', fontsize=15)
+        ax.set_title('2 component PCA', fontsize=20)
+
+        ax.scatter(principalDf.loc[:,'principal component 1'], principalDf.loc[:, 'principal component 2'], c=labels, s=50)
+
+        ax.legend(labels)
+        ax.grid()
+        print('Done')
+
+

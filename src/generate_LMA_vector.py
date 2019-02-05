@@ -45,9 +45,9 @@ def dist_btwn_vectors(a, b):
     ''' Returns distance between two 3D points '''
     return np.linalg.norm(a-b)
 
-def dist_btwn_pt_and_axis(x, p1, p2):
-    return np.cross(p2-p1,x-p1)/np.linalg.norm(p2-p1)
-    
+def dist_btwn_pt_and_axis(p0, p1, p2):
+    return np.linalg.norm(np.cross(p2-p1,p0-p1))/np.linalg.norm(p2-p1)
+
 def _mean(x, y):
     return (x+y)/2;
 
@@ -73,7 +73,6 @@ def generate_LMA_features(keypoints, timestep_between_frame):
 
     # TODO: Check for handedness of actors.
     # TODO: Check neck/nose = center of shoulders
-    axis_knee_feet = [frame[joints['Hip']] - _mean(frame[joints['LKnee']], frame[joints['RKnee']]) for frame in keypoints] # axis binding center of knees and center of feet
 
     # dist between left/right wrist and axis binding center of hip and center of shoulders/neck
     d_LWrist_center = [dist_btwn_pt_and_axis(frame[joints['LWrist']], frame[joints['Neck/Nose']], frame[joints['Hip']]) for t, frame in enumerate(keypoints)]
@@ -95,11 +94,12 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     d_RKnee_center = np.array(d_RKnee_center)
     d_LFoot_center = np.array(d_LFoot_center)
     d_RFoot_center = np.array(d_RFoot_center)
+
     LMA_vector['dys_hands'] = np.divide(d_LWrist_center, d_LWrist_center + d_RWrist_center) # TODO: replace with non-dominant hand/knee/foot
     LMA_vector['dys_knees'] = np.divide(d_LKnee_center, d_LKnee_center + d_RKnee_center)
     LMA_vector['dys_feet'] =  np.divide(d_LFoot_center, d_LFoot_center + d_RFoot_center)
 
-
+    # single
     LMA_vector['d_LWrist_LShoulder'] = [dist_btwn_vectors(frame[joints['LWrist']], frame[joints['LShoulder']]) for frame in keypoints]
     LMA_vector['d_RWrist_RShoulder'] = [dist_btwn_vectors(frame[joints['RWrist']], frame[joints['RShoulder']]) for frame in keypoints]
     LMA_vector['d_LFoot_LHip'] = [dist_btwn_vectors(frame[joints['LFoot']], frame[joints['LHip']]) for frame in keypoints]
@@ -123,12 +123,14 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     flow = np.array([a - accel[t-1] if t > 0 else np.zeros((17, 3)) for t, a in enumerate(accel)])
     flow = np.divide(flow, timestep_between_frame)
 
-    velocity = [joint_veloc[1] for frame in velocity for joint_veloc in frame]
-    accel = [joint_accel[1] for frame in accel for joint_accel in frame]
+    velocity = [[joint_veloc[1] for joint_veloc in frame] for frame in velocity ]
+    accel = [[joint_accel[1] for joint_accel in frame] for frame in accel]
 
-    LMA_vector.update({'veloc_y_'+ joints_by_index[i]: velocity[i] for i in range(17)}) # No velocity/accel at timestep 0
-    LMA_vector.update({'accel_y_' + joints_by_index[i]: accel[i] for i in range(17)})
-    LMA_vector.update({'jerk_' + joints_by_index[i]: flow[i] for i in range(17)})
+    LMA_vector.update({'veloc_y_' + joints_by_index[i]: [frame_veloc[i] for frame_veloc in velocity] for i in range(17)}) # No velocity/accel at timestep 0
+    LMA_vector.update({'accel_y_' + joints_by_index[i]: [frame_accel[i] for frame_accel in accel] for i in range(17)})
+    LMA_vector.update({'jerk_x_' + joints_by_index[i]: [frame_flow[i][0] for frame_flow in flow] for i in range(17)})
+    LMA_vector.update({'jerk_y_' + joints_by_index[i]: [frame_flow[i][1] for frame_flow in flow] for i in range(17)})
+    LMA_vector.update({'jerk_z_' + joints_by_index[i]: [frame_flow[i][2] for frame_flow in flow] for i in range(17)})
 
     ''' 
     Shape: 
@@ -139,8 +141,8 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     OR ampltiude difference between knees, hips, shoulders, hands, feet respectively
     '''
 
-    C_t = [(np.absolute(frame[joints['Hip']] - frame[joints['LWrist']]) +
-            np.absolute(frame[joints['Hip']] - frame[joints['RWrist']])
+    C_t = [(np.linalg.norm(frame[joints['Hip']] - frame[joints['LWrist']]) +
+            np.linalg.norm(frame[joints['Hip']] - frame[joints['RWrist']])
             ) / 2 for frame in keypoints]
 
     spread_enclos_measure = [[dist_btwn_pt_and_axis(joint, frame[joints['Head']], frame[joints['Spine']]) for joint in frame] for t, frame in enumerate(keypoints)] # TODO: come back to and check it works fine with repeating vert_axis for distance

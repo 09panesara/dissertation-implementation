@@ -1,9 +1,10 @@
 import numpy as np
+import pandas as pd
 import os
 import glob
 import re
 import shutil
-
+from utils.split_train_test import split_train_test
 from moviepy.editor import VideoFileClip
 
 # Joints in H3.6M -- data has 32 joints, but only 17 that move; these are the indices.
@@ -68,6 +69,7 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
     '''
     print('Generating single keypoints file from keypoints ...')
     kpts_list = list(glob.iglob(path + '/*.npz'))
+    # TODO Missing left hip -> replace with right hip value
     positions_3d = {}
     for file in kpts_list:
         name = os.path.basename(file)[:-4]
@@ -81,6 +83,7 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
         kpts = np.load(file, encoding='latin1')['positions_3d']
         curr_positions = [frame[0] for frame in kpts]
         curr_positions = [[frame[xyz] for xyz in H36_INDICES_3D_POSE_BASELINE] for frame in curr_positions]
+
         if subject not in positions_3d:
             positions_3d[subject] = {}
         if action not in positions_3d[subject]:
@@ -97,7 +100,6 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
     np.savez_compressed(output_dir + '/3dpb_keypoints.npz', positions_3d=positions_3d)
     print('Done.')
     return positions_3d
-
 
 
 
@@ -144,9 +146,25 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
         np.savez_compressed(timesteps_path, timesteps=timesteps)
         return timesteps
 
+# def clean_LMA(path='../data/LMA_features.h5'):
+#     df = pd.read_hdf(path)
+#     column = df.columns.values
+#     for row in df:
+#         if
 
+def load_LMA(path='../data/LMA_features.h5'):
+    return pd.read_hdf(path)
 
-
+def get_train_test_set(folder='../data'):
+    if not os.path.isfile(folder + '/' + 'train_data.h5') and not os.path.isfile(folder + '/' + 'test_data.h5'):
+        print('Generating train and test datasets')
+        LMA = load_LMA()
+        train, test = split_train_test(LMA, 80, 20)
+    else:
+        print('Getting train, test data')
+        train = pd.read_hdf(folder + '/train_data.h5')
+        test = pd.read_hdf(folder + '/test_data.h5')
+    return train, test
 
 
 
