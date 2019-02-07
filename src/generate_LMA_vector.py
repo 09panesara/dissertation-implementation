@@ -148,7 +148,7 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     spread_enclos_measure = [[dist_btwn_pt_and_axis(joint, frame[joints['Head']], frame[joints['Spine']]) for joint in frame] for t, frame in enumerate(keypoints)] # TODO: come back to and check it works fine with repeating vert_axis for distance
     spread_enclos_measure = [np.mean(frame) for frame in spread_enclos_measure]
 
-    rise_sink_measure = [np.mean(dist_btwn_vectors(frame,center_of_mass[t])) for t, frame in enumerate(keypoints)]
+    rise_sink_measure = [np.mean([dist_btwn_vectors(joint,center_of_mass[t]) for joint in frame]) for t, frame in enumerate(keypoints)]
 
     A_x = [np.max(frame[:,0])-np.min(frame[:,0]) for frame in keypoints]
     A_y = [np.max(frame[:,1])-np.min(frame[:,1]) for frame in keypoints]
@@ -156,7 +156,7 @@ def generate_LMA_features(keypoints, timestep_between_frame):
 
     LMA_vector['contraction'] = C_t
     LMA_vector['spread_enclos'] = spread_enclos_measure
-    LMA_vector['rise_sink'] = rise_sink_measure
+    LMA_vector['rise_sink'] = rise_sink_measure # TODO: sort out!
     LMA_vector['Ampl_x'] = A_x
     LMA_vector['Ampl_y'] = A_y
     LMA_vector['Ampl_z'] = A_z

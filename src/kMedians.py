@@ -36,6 +36,8 @@ class kmedians():
 
 
     def fit(self, X):
+        print('Fitting kmedians to data')
+        X = np.array(X)
         random_state = check_random_state(self.random_state)
         center_labels = random_state.permutation(self.total_no_frames)[:self.k]
         self.labels_ = np.array([random_state.choice(center_labels) for i in range(self.total_no_frames)])
@@ -66,12 +68,17 @@ class kmedians():
         intra = np.sum([self._euclidean_dist(x, self.cluster_centers_[i]) for i, x in enumerate(X)])/self.total_no_frames
 
         median_distances = list(set(tuple(row) for row in self.cluster_centers_))
-        distances = [self._euclidean_dist(x, median_distances[j]) for k, x in enumerate(median_distances) for j in range(k + 1, len(median_distances))]
-        inter = min(distances)
+        median_distances = [list(tpl) for tpl in median_distances]
+        if len(median_distances) > 1:
+            distances = [self._euclidean_dist(x, median_distances[j]) for k, x in enumerate(median_distances) for j in range(k + 1, len(median_distances))]
+            inter = min(distances)
 
-        validity = intra/inter
+            validity = intra/inter
 
-        return validity
+            return validity
+
+        else: # Only one cluster, return maximum integer
+            return float('inf')
 
 
     def _get_clusters(self, X):
@@ -82,20 +89,21 @@ class kmedians():
 
         return np.array(clusters)
 
-    def _get_cmap(n, name='hsv'):
-        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-        RGB color; the keyword argument name must be a standard mpl colormap name.'''
-        return plt.cm.get_cmap(name, n)
 
-    def _visualise_clusters(self, clusters):
-        flat_clusters = [pt for cluster in clusters for pt in cluster]
-        cmap = self._get_cmap(len(clusters))
+    # def _get_cmap(n, name='hsv'):
+    #     '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+    #     RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    #     return plt.cm.get_cmap(name)
 
+    def _visualise_clusters(self, clusters, plot_name, show_plot=False):
+        print('Visualising clusters...')
+        cmap = plt.cm.get_cmap('Pastel1', len(clusters)).colors
         labels = [[cmap[i] for j in range(len(cluster))] for i, cluster in enumerate(clusters)]
         labels = [l for label_arr in labels for l in label_arr]
+        flat_clusters = [pt for cluster in clusters for pt in cluster]
 
-        pca = PCA(n_components=2).fit(clusters)
-        pca_2d = pca.transform(clusters)
+        pca = PCA(n_components=2).fit(flat_clusters)
+        pca_2d = pca.transform(flat_clusters)
         principalDf = pd.DataFrame(data=pca_2d
                                    , columns=['principal component 1', 'principal component 2'])
 
@@ -109,6 +117,10 @@ class kmedians():
 
         ax.legend(labels)
         ax.grid()
+        print('Saving plot...')
+        plt.savefig('../plots/' + plot_name)
+        if show_plot:
+            plt.show()
         print('Done')
 
 
