@@ -5,6 +5,7 @@ from src.kMedians import kmedians
 from scipy.spatial.distance import euclidean
 from itertools import combinations
 
+
 def _set_multid(x):
     return set(tuple(item) for item in x)
 
@@ -86,7 +87,6 @@ def _accuracy_metrics(predicted, ground_truth):
 
 
 
-
 def test_k_medians():
     no_samples = 100
     no_features = 5
@@ -95,6 +95,7 @@ def test_k_medians():
     k_medians = kmedians(no_features, no_samples)
     k_medians = k_medians.fit(X)
     predicted_clusters = k_medians._get_clusters(X)
+    k_medians._visualise_clusters(predicted_clusters, 'test.png')
     actual_clusters = np.array([[x for j, x in enumerate(X) if y[j]==i] for i in range(no_centers)])
 
     precision, recall, f1score = _accuracy_metrics(predicted_clusters, actual_clusters)
@@ -106,6 +107,7 @@ def test_k_medians():
     Test 1:
     .0.7151310228233305 0.705 0.7100293747377255
     '''
+
 
 
 

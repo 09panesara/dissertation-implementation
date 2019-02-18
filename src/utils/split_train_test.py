@@ -76,9 +76,9 @@ def split(df, train_size=60, val_size=20, test_size=20):
                             test_df.append(row.copy(), ignore_index=True)
 
     ''' Write datasets to data/ '''
-    train_df.to_hdf('../data/train_data.h5', key='df', mode='w')
-    validation_df.to_hdf('../data/validation_data.h5', key='df', mode='w')
-    test_df.to_hdf('../data/test_data.h5', key='df', mode='w')
+    train_df.to_hdf('../data/training/train_data.h5', key='df', mode='w')
+    validation_df.to_hdf('../data/training/validation_data.h5', key='df', mode='w')
+    test_df.to_hdf('../data/test/test_data.h5', key='df', mode='w')
 
 def split_train_test(df, train_size=80, test_size=20):
     def _convert_index_to_subj_emotion(y):
@@ -111,8 +111,8 @@ def split_train_test(df, train_size=80, test_size=20):
     train_df = pd.DataFrame(data=np.hstack((X_train, y_train)), columns=columns)
     test_df = pd.DataFrame(data=np.hstack((X_test, y_test)), columns=columns)
 
-    train_df.to_hdf('../data/train_data.h5', key='df', mode='w')
-    test_df.to_hdf('../data/test_data.h5', key='df', mode='w')
+    train_df.to_hdf('../data/training/train_data.h5', key='df', mode='w')
+    test_df.to_hdf('../data/test/test_data.h5', key='df', mode='w')
     return train_df, test_df
 
 

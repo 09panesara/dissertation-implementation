@@ -3,6 +3,27 @@ import numpy as np
 from utils import data_utils
 import pandas as pd
 import os
+from merge_posesets import merge_centers, get_centers
+
+joints = [
+    'Hip',
+    'RHip',
+    'RKnee',
+    'RFoot',
+    'LHip',
+    'LKnee',
+    'LFoot',
+    'Spine',
+    'Thorax',
+    'Neck/Nose',
+    'Head',
+    'LShoulder',
+    'LElbow',
+    'LWrist',
+    'RShoulder',
+    'RElbow',
+    'RWrist'
+]
 
 def flatten_by_frame(df):
     '''
@@ -27,6 +48,8 @@ def flatten_by_frame(df):
         assert(len(df_temp.columns.values)==len(split_df.columns.values))
         split_df = split_df.append(df_temp)
     return split_df
+
+
 
 def generate_lexicon(emotion, train, override_existing_clusters=False, visualise_clusters=True):
     '''
@@ -64,7 +87,7 @@ LMA_train, LMA_test = data_utils.get_train_test_set()
 
 for emotion in emotions:
     print('Finding clusters for emotion ' + emotion)
-    df_path = '../data/train_' + emotion + '.h5'
+    df_path = '../data/training/train_' + emotion + '.h5'
     if not os.path.isfile(df_path):
         df = LMA_train.loc[LMA_train['emotion'] == emotion]
         df = flatten_by_frame(df)
@@ -74,4 +97,27 @@ for emotion in emotions:
         df = pd.read_hdf(df_path)
     df_arr = np.array(df)
     generate_lexicon(emotion, df_arr)
+
+
+''' Merge centers '''
+dir = '../data/clusters'
+emotion_centers = get_centers(dir)
+# emotion_centers = preprocessing.scale(emotion_centers)
+thresh = 6500
+new_centers = merge_centers(emotion_centers, thresh=thresh)
+print('Saving merged centers...')
+np.savez_compressed('../data/clusters/merged_centers.npz', merged_centers=new_centers, thresh=thresh)
+print('Done.')
+
+
+
+
+
+
+
+
+
+
+
+
 

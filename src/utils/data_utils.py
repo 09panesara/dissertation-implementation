@@ -152,13 +152,16 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
 #     for row in df:
 #         if
 
-def load_LMA(path='../data/LMA_features.h5'):
-    return pd.read_hdf(path)
+def load_LMA(path):
+    if path:
+        return pd.read_hdf(path)
+    else:
+        return pd.read_hdf('../data/LMA_features.h5')
 
-def get_train_test_set(folder='../data'):
+def get_train_test_set(folder='../data', LMA_path=None):
     if not os.path.isfile(folder + '/' + 'train_data.h5') and not os.path.isfile(folder + '/' + 'test_data.h5'):
         print('Generating train and test datasets')
-        LMA = load_LMA()
+        LMA = load_LMA(LMA_path)
         train, test = split_train_test(LMA, 80, 20)
     else:
         print('Getting train, test data')

@@ -53,9 +53,12 @@ def _mean(x, y):
 
 # TODO: test
 def generate_LMA_features(keypoints, timestep_between_frame):
-    keypoints = normalise_keypoints(keypoints)
-    LMA_vector = {}
+    LMA_vector = {joints_by_index[i] +'_x': [frame[i][0] for frame in keypoints] for i in range(17)}
+    LMA_vector.update({joints_by_index[i] + '_y': [frame[i][1] for frame in keypoints] for i in range(17)})
+    LMA_vector.update({joints_by_index[i] + '_z': [frame[i][2] for frame in keypoints] for i in range(17)})
     LMA_vector['timestep_btwn_frame'] = timestep_between_frame
+
+    keypoints = normalise_keypoints(keypoints)
 
     # Approximate center of mass as avg of points
     center_of_mass = [[np.mean(frame[:,0]), np.mean(frame[:,1]), np.mean(frame[:,2])] for frame in keypoints]
@@ -173,6 +176,9 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     LMA_vector['LElbow_fb_motion'] = LElbow_fb_motion
     LMA_vector['LElbow_fb_motion'] = RElbow_fb_motion
 
+    ''' Add original pose keypoints '''
+
+
     return LMA_vector
 
 
@@ -206,6 +212,7 @@ joints = {
 
 
 joints_by_index = list(joints.keys())
+
 timesteps = data_utils.get_timestep(timesteps_path='../data/timesteps.npz', videos_dir='../VideoPose3D/videos/walking_videos')  # float
 
 
