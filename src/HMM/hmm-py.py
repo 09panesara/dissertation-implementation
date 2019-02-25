@@ -8,6 +8,7 @@ from collections import Counter
 import simplejson
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 
 def _flatten_by_frame_by_row(df):
     '''
@@ -109,51 +110,42 @@ def train_model(train_X, train_y):
     return model
 
 
-def _top_3_classes(predictions):
+def _top_2_classes(predictions):
     ''' Identify top 3 classes assigned '''
     counter = Counter(predictions)
-    top_3 = counter.most_common(3)
-    top_3 = [most_common[0] for most_common in top_3]
-    top_3 = [emotions[most_common] for most_common in top_3] # Get in 'ang', etc form
-    return top_3
+    top_2 = counter.most_common(2)
+    top_2 = [most_common[0] for most_common in top_2]
+    top_2 = [emotions[most_common] for most_common in top_2] # Get in 'ang', etc form
+
+    return top_2
 
 
 def hmm_inference(model, test_X, test_y):
-    RR_0 = {emotion: 0 for emotion in emotions}
-    RR_1 = {emotion: 0 for emotion in emotions}
-    RR_2 = {emotion: 0 for emotion in emotions}
-    RR_cum = {emotion: 0 for emotion in emotions}
-    I_0 = {emotion: 0 for emotion in emotions}
-    I_1 = {emotion: 0 for emotion in emotions}
-    I_2 = {emotion: 0 for emotion in emotions}
-    I = {emotion:0 for emotion in emotions}
+    RR_1 = {emotion: {emotion: 0 for emotion in emotions} for emotion in emotions}
+    RR_2= {emotion: {emotion: 0 for emotion in emotions} for emotion in emotions}
+    RR_cum = {emotion: {emotion: 0 for emotion in emotions} for emotion in emotions}
+    gt_counts = {emotion: 0 for emotion in emotions}
 
     print('Predicting emotion from model...')
     for i, vid in enumerate(test_X):
+        print(i)
         gt = test_y[i]
+        gt_counts[gt] += 1
         predictions = model.predict(vid)
-        top_3 = _top_3_classes(predictions)
-        I[gt] += 1
-        if top_3[0] == gt:
-            I_0[gt] += 1
-        elif len(top_3) > 1 and top_3[1] == gt: # might only be 1 prediction across timeseries
-            I_1[gt] += 1
-        elif len(top_3) > 2 and top_3[2] == gt: # might be < 3 predicted emotions across timeseries
-            I_2[gt] += 1
+        top_2 = _top_2_classes(predictions)
+        RR_1[gt][top_2[0]] += 1
+        if len(top_2) > 1:
+            RR_2[gt][top_2[1]] += 1
+    for emotion1 in RR_1:
+        for emotion2 in RR_1[emotion1]:
+            RR_1[emotion1][emotion2] = RR_1[emotion1][emotion2] / gt_counts[emotion1]
+            RR_2[emotion1][emotion2] = RR_2[emotion1][emotion2] / gt_counts[emotion1]
+            RR_cum[emotion1][emotion2] = RR_1[emotion1][emotion2] + RR_2[emotion1][emotion2]
 
-    # Calculate RR(0), RR(1), RR(2) for each emotion
-    for emotion in emotions:
-        RR_0[emotion] = I_0[emotion] / I[emotion]
-        RR_1[emotion] = I_1[emotion] / I[emotion]
-        RR_2[emotion] = I_2[emotion] / I[emotion]
-        RR_cum[emotion] = RR_0[emotion] + RR_1[emotion] + RR_2[emotion]
+    print("Writing recognition results to data/model_output.npz...")
+    np.savez_compressed('../../data/model_output.npz', RR_1=RR_1, RR_2=RR_2, RR_cum=RR_cum)
+    print('Done')
 
-    with open('../../data/model_output.txt', 'w') as f:
-        print("Writing recognition results to data/model_output.txt...")
-        f.write('Emotion,RR_0,RR_1,RR_2,RR_cum \n')
-        for emotion in emotions:
-            f.write(emotion + ',' + str(RR_0[emotion]) + "," + str(RR_1[emotion]) + "," + str(RR_2[emotion]) + "," + str(RR_cum[emotion]) + "\n")
-        print('Done')
 
 def hmm():
     train_X, train_y, test_X, test_y = get_train_test_soft_assign()
@@ -197,13 +189,42 @@ def plot_recog_rate():
     plt.savefig('../../plots/recog_rate.png')
     plt.show()
 
+def confusion_mat():
+    n_emotions = len(emotions)
+    recog_rates = np.load('../../data/model_output.npz', encoding='latin1')
+    RR_1 = recog_rates['RR_1'].item()
+    RR_cum = recog_rates['RR_cum'].item()
+    conf_mat_RR_1 = np.zeros((n_emotions,n_emotions))
+    conf_mat_RR_cum = np.zeros((n_emotions,n_emotions))
+
+    for i,emotion1 in enumerate(emotions):
+        for j,emotion2 in enumerate(emotions):
+            conf_mat_RR_1[i][j] = RR_1[emotion1][emotion2] # flip indices so that gt is on y axis in confusion matrix plot
+            conf_mat_RR_cum[i][j] = RR_cum[emotion1][emotion2]
+
+    df_RR_1 = pd.DataFrame(conf_mat_RR_1, index=emotions, columns=emotions)
+    df_RR_cum = pd.DataFrame(conf_mat_RR_cum, index=emotions, columns=emotions)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,12))
+    ax1.title.set_text('Recognition rate at position 1')
+    sns.set(font_scale=1.4)  # for label size
+    sns.heatmap(df_RR_1, annot=True, annot_kws={"size": 16}, ax=ax1)  # font size
+
+    ax1.set_ylabel('Ground truth emotion')
+
+    ax2.title.set_text('Cumulative recognition rates for position 1, 2')
+    sns.set(font_scale=1.4)  # for label size
+    sns.heatmap(df_RR_cum, annot=True, annot_kws={"size": 16}, ax=ax2)  # font size
+    ax2.set_ylabel('Ground truth emotion')
+
+    plt.show()
+
 
 
 if __name__ == '__main__':
     emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
     # hmm()
-    plot_recog_rate()
-
+    confusion_mat()
 
 
 
