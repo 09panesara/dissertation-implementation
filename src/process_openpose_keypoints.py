@@ -4,8 +4,9 @@ import numpy as np
 import glob
 import os
 import shutil
-import ast
 import re
+import random
+from filterpy.kalman import KalmanFilter
 
 class ProcessOpenPose2DData():
     def __init__(self, kpts_dir='../data/openpose_output'):
@@ -214,8 +215,37 @@ class ProcessOpenPose2DData():
 
 
 
+    def _rts_smoother(self, dir):
+        print('Applying rts smoother to openpose keypoints')
+        directories = sorted([dir + "/" + name for name in os.listdir(dir) if
+                              os.path.isdir(dir + "/" + name)])
+        kpts_list = [sorted(list(glob.iglob(directory + '/*.json'))) for directory in directories]
+        ''' process keypoints in array format '''
+
+        # filter data with Kalman filter, than run smoother on it
+        kpts = kpts_list[0]
+        kpts = [self._check_keypoints(kpts_path) for kpts_path in kpts]
+        kpts = [np.array(vid_kpts) for vid_kpts in kpts]
+        kpts = np.array(kpts)
+        # kpts = [kpt.reshape(75,1) for kpt in kpts]
+        zs = kpts[0]
+        print(zs.shape)
+        zs.reshape(75)
+        print(zs.shape)
+        random.seed(123)
+        fk = KalmanFilter(dim_x=75, dim_z=75)
+        fk.x = zs[0] # initial state
+        fk.F = np.ones(75)
+        fk.H = np.eye(75)
+        fk.Q = 0.1 # process uncertainty
+        fk.R = 11 # state uncertainty, TODO iterate with different values
+
+        mu, cov, _, _ = fk.batch_filter(zs)
+        M, P, C, _ = fk.rts_smoother(mu, cov)
+
+
 processOpenPose = ProcessOpenPose2DData()
 # processOpenPose.remove_empty_openpose_kpts()
-processOpenPose._filter_by_highest_intensity()
-
+# processOpenPose._filter_by_highest_intensity()
+processOpenPose._rts_smoother(dir='../data/filtered_openpose')
 

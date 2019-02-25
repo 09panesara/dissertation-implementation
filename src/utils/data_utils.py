@@ -51,7 +51,7 @@ def join_3d_keypoints(keypoints_folder, output_dir='../../data'):
     print('Done.')
 
 
-def load_3d_keypoints(keypoints_folder='../data', kpts_filename = '3dpb_keypoints.npz'):
+def load_3d_keypoints(keypoints_folder='../data/3d-pose-baseline', kpts_filename = '3dpb_keypoints.npz'):
     print('Loading 3d keypoints...')
     assert(os.path.isdir(keypoints_folder))
     if not os.path.isfile(keypoints_folder + '/' + kpts_filename):

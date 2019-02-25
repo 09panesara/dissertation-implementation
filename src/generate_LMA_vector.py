@@ -211,20 +211,45 @@ joints = {
 
 
 
+
+
 joints_by_index = list(joints.keys())
 
-timesteps = data_utils.get_timestep(timesteps_path='../data/timesteps.npz', videos_dir='../VideoPose3D/videos/walking_videos')  # float
+
+def LMA_action_db():
+    timesteps = data_utils.get_timestep(timesteps_path='../data/action_db/timesteps.npz',
+                                        videos_dir='../VideoPose3D/videos/walking_videos')  # float
+
+    for subject in keypoints_3d:
+        for action in keypoints_3d[subject]:
+            for emotion in keypoints_3d[subject][action]:
+                for intensity in keypoints_3d[subject][action][emotion]:
+                    for i, kpts in enumerate(keypoints_3d[subject][action][emotion][intensity]):
+                        print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
+                        LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
+                        LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timesteps[subject][action][emotion][intensity][i]))
+                        LMA_df = LMA_df.append(LMA_features, ignore_index=True)
+
+    # Write pandas dataframe to compressed h5.py file
+    LMA_df.to_hdf('../data/action_db/LMA_features.h5', key='df', mode='w')
 
 
-for subject in keypoints_3d:
-    for action in keypoints_3d[subject]:
-        for emotion in keypoints_3d[subject][action]:
-            for intensity in keypoints_3d[subject][action][emotion]:
-                for i, kpts in enumerate(keypoints_3d[subject][action][emotion][intensity]):
-                    print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
-                    LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
-                    LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timesteps[subject][action][emotion][intensity][i]))
+def LMA_paco():
+    # need to adjust for paco dataset
+    # movements were 30 seconds, so approximate timestep between frames as 30/no_timesteps
+    timesteps = data_utils.get_paco_timestep(timesteps_path='../data/action_db/timesteps.npz',
+                                        videos_dir='../VideoPose3D/videos/walking_videos')  # float
+    for subject in keypoints_3d:
+        for action in keypoints_3d[subject]:
+            for emotion in keypoints_3d[subject][action]:
+                for i, data in enumerate(keypoints_3d[subject][action][emotion]):
+                    kpts = data['keypoints']
+                    timestep = data['timestep']
+                    print('Subject: %s, action: %s, emotion: %s, intensity: %s' % (
+                    subject, action, emotion))
+                    LMA_features = {'subject': subject, 'action': action, 'emotion': emotion}
+                    LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timestep))
                     LMA_df = LMA_df.append(LMA_features, ignore_index=True)
 
-# Write pandas dataframe to compressed h5.py file
-LMA_df.to_hdf('../data/LMA_features.h5', key='df', mode='w')
+    # Write pandas dataframe to compressed h5.py file
+    LMA_df.to_hdf('../data/paco/LMA_features.h5', key='df', mode='w')
