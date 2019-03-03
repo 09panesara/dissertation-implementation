@@ -9,16 +9,24 @@ import simplejson
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import ast
 
-def _flatten_by_frame_by_row(df):
+def _flatten_by_frame_by_row(df, paco=False):
     '''
     :param df: dataframe for particular emotion, containing one row per video
     :return: Flattened numpy array containing [[[frame1],[frame2],...], [...],...]
     '''
-    cols_to_ignore = ['emotion', 'intensity', 'subject', 'action']
+
+    def _convert_to_list(s):
+        try:
+            return ast.literal_eval(s)
+        except:
+            return [float(item) for item in s]
+
+    cols_to_ignore = ['emotion', 'subject', 'action']
+    if 'intensity' in df.columns.values:
+        cols_to_ignore.append('intensity')
     df = df.drop(cols_to_ignore, axis=1)
-    columns = df.columns.values
-    split_df = pd.DataFrame(columns=columns)
 
     split_arr = []
     for i, row in df.iterrows(): # Each row = different video for corresponding emotion
@@ -27,25 +35,39 @@ def _flatten_by_frame_by_row(df):
         timestep = [timestep for i in range(no_frames)]
         row['timestep_btwn_frame'] = timestep
         arr = np.array(row)
+        if paco:
+            arr = [_convert_to_list(r) for r in arr]
         arr = list(zip(*arr))
         arr = [np.array(row) for row in arr]
         split_arr.append(arr)
     return np.array(split_arr)
 
-def _soft_assignment(dict_path='../../data/clusters/merged_centers.npz', data_fpath='../../data/training/train_data.h5', output_fname="train_soft_assign.npz"):
+
+
+def _soft_assignment(dict_path='../../data/action_db/clusters/merged_centers.npz', data_fpath='../../data/action_db/training/train_data.h5', output_fname="train_soft_assign.npz", paco=False, rmv_fear=False):
     ''' Do soft assignment
         Default parameters = for train dataset
     '''
+
     global_dict = np.load(dict_path, encoding='latin1')
-    LMA_train = pd.read_hdf(data_fpath)
+    if data_fpath.endswith('.h5'):
+        LMA_train = pd.read_hdf(data_fpath)
+    else:
+        LMA_train = pd.read_csv(data_fpath).iloc[:, 1:]
+
+    if rmv_fear:
+        print('Discarding fear emotion')
+        LMA_train = LMA_train[LMA_train['emotion']!='fea']
 
     thresh = global_dict['thresh']
     global_dict = global_dict['merged_centers']
     output = {}
+    print('Doing soft assignment on dataset: ' + data_fpath)
+    print(LMA_train['subject'])
     for emotion in emotions:
         df = LMA_train.loc[LMA_train['emotion'] == emotion]
         print('Doing soft assignment for emotion: ' + emotion)
-        soft_assign_v = _flatten_by_frame_by_row(df)
+        soft_assign_v = _flatten_by_frame_by_row(df, paco)
         # over each video, over each frame, calculate o(t) = relative position of vector in space drawn by key poses at frame t
         o_t = [[[euclidean(frame, ref_pose) for ref_pose in global_dict] for frame in vid] for vid in soft_assign_v]
         o_t = [[[d_j/np.sum(frame) for d_j in frame] for frame in vid] for vid in o_t]
@@ -71,10 +93,14 @@ def get_soft_assignment(soft_assign):
 
 
 
-def get_train_test_soft_assign(train_fpath='../../data/training/train_soft_assign.npz', test_fpath='../../data/test/test_soft_assign.npz'):
+def get_train_test_soft_assign(train_fpath='../../data/action_db/training/train_soft_assign.npz', test_fpath='../../data/action_db/test/test_soft_assign.npz', paco=False, rmv_fear=False):
     if not os.path.isfile(train_fpath):
         print("Soft assignment on train dataset")
-        train_set = _soft_assignment()
+        train_data_fpath = os.path.dirname(train_fpath) + '/train_data.h5'
+        if not os.path.isfile(train_fpath):
+            assert os.path.isfile(os.path.dirname(train_fpath) + '/train_data.csv')
+            train_data_fpath = os.path.dirname(train_fpath) + '/train_data.csv'
+        train_set = _soft_assignment(data_fpath=train_data_fpath, output_fname='train_soft_assign.npz', paco=paco, rmv_fear=rmv_fear)
     else:
         print("Loading emotion train sets...")
         train_set = np.load(train_fpath, encoding='latin1')['soft_assign'].item()
@@ -82,7 +108,7 @@ def get_train_test_soft_assign(train_fpath='../../data/training/train_soft_assig
 
     if not os.path.isfile(test_fpath):
         print("Soft assignment on test dataset")
-        test_set = _soft_assignment(data_fpath=os.path.dirname(test_fpath) + '/test_data.h5', output_fname=test_fpath)
+        test_set = _soft_assignment(data_fpath=os.path.dirname(test_fpath) + '/test_data.h5', output_fname='test_soft_assign.npz', paco=paco, rmv_fear=rmv_fear)
     else:
         print("Loading emotion test sets...")
         test_set = np.load(test_fpath, encoding='latin1')['soft_assign'].item()
@@ -90,81 +116,149 @@ def get_train_test_soft_assign(train_fpath='../../data/training/train_soft_assig
 
     return train_X, train_y, test_X, test_y
 
-def train_model(train_X, train_y):
+
+def train_model(train_X, train_y, hmm_json_fpath):
     ''' cross validate for HMM learning - TODO: after run once while HMM is doing learning, need to consider gender, intensity '''
     print('Training model')
     # multivariate GMM HMM
-    model = HiddenMarkovModel.from_samples(MultivariateGaussianDistribution, n_components=5, X=train_X, algorithm='baum-welch', min_iterations=10)
+    # labels = [[lbl for j in range(len(train_X[i]))] for i, lbl in enumerate(train_y)]
+    labels = [[lbl] for i, lbl in enumerate(train_y)]
+    assert len(train_X) == len(train_y)
+    # model = HiddenMarkovModel.from_samples(MultivariateGaussianDistribution, n_components=4, X=train_X, labels=labels, algorithm='baum-welch', state_names=emotions, verbose=True)
+    model = HiddenMarkovModel.from_samples(MultivariateGaussianDistribution, n_components=4, X=train_X, algorithm='baum-welch', state_names=emotions, verbose=True)
 
-    for i in range(5):
-        print(model.states[i].distribution.parameters[0])
-
-    model.fit(train_X, labels=train_y, algorithm='baum-welch', min_iterations=1500, verbose=True)  # TODO: check if labels are even used in BW?
+    model.fit(train_X, algorithm='baum-welch', verbose=True, n_jobs=4)
     model.bake()
 
     # TODO: use log probabilities
     # Persist HMM
     model_json = HiddenMarkovModel.to_json(model)
-    with open('../../models/HMM.json', 'w') as file:
+
+    with open(hmm_json_fpath, 'w') as file:
         simplejson.dump(model_json, file)
     return model
 
 
-def _top_2_classes(predictions):
-    ''' Identify top 3 classes assigned '''
+def _top_k_classes(predictions, k):
+    ''' Identify top k classes assigned '''
+    # remove start state and end state
+    predictions = [p for p in predictions if p!=0 and p!=len(emotions)]
     counter = Counter(predictions)
-    top_2 = counter.most_common(2)
-    top_2 = [most_common[0] for most_common in top_2]
-    top_2 = [emotions[most_common] for most_common in top_2] # Get in 'ang', etc form
+    top_k = counter.most_common(k)
+    top_k = [most_common[0] for most_common in top_k]
+    print(top_k)
 
-    return top_2
+    # 1???
+    top_k = [emotions[most_common-1] for most_common in top_k] # Get in 'ang', etc form
+
+    return top_k
 
 
-def hmm_inference(model, test_X, test_y):
+def hmm_inference(model, test_X, test_y, model_output_dir='../../data/action_db', plot_recog_rate=True):
     RR_1 = {emotion: {emotion: 0 for emotion in emotions} for emotion in emotions}
     RR_2= {emotion: {emotion: 0 for emotion in emotions} for emotion in emotions}
+
     RR_cum = {emotion: {emotion: 0 for emotion in emotions} for emotion in emotions}
     gt_counts = {emotion: 0 for emotion in emotions}
-
+    print(model.node_count())
+    model.plot()
     print('Predicting emotion from model...')
+
     for i, vid in enumerate(test_X):
-        print(i)
         gt = test_y[i]
+        print("Processing vid " + str(i) + " with gt emotion " + gt)
         gt_counts[gt] += 1
-        predictions = model.predict(vid)
-        top_2 = _top_2_classes(predictions)
+        predictions = model.predict(vid, algorithm='viterbi')
+        print('Prediction')
+        print(predictions)
+        top_2 = _top_k_classes(predictions, 2)
+        # print('top 2')
+        # print(top_2)
         RR_1[gt][top_2[0]] += 1
         if len(top_2) > 1:
             RR_2[gt][top_2[1]] += 1
+    print(RR_1)
     for emotion1 in RR_1:
         for emotion2 in RR_1[emotion1]:
             RR_1[emotion1][emotion2] = RR_1[emotion1][emotion2] / gt_counts[emotion1]
             RR_2[emotion1][emotion2] = RR_2[emotion1][emotion2] / gt_counts[emotion1]
+            # RR_2[emotion1][emotion2] = RR_2[emotion1][emotion2] / gt_counts[emotion1]
             RR_cum[emotion1][emotion2] = RR_1[emotion1][emotion2] + RR_2[emotion1][emotion2]
 
-    print("Writing recognition results to data/model_output.npz...")
-    np.savez_compressed('../../data/model_output.npz', RR_1=RR_1, RR_2=RR_2, RR_cum=RR_cum)
+    # normalise RR_cum
+    for emotion1 in RR_1:
+        for emotion2 in RR_1[emotion1]:
+            RR_cum[emotion1][emotion2] = RR_cum[emotion1][emotion2] / np.sum([RR_cum[emotion1][e] for e in emotions])
+
+    print("Writing recognition results to " + model_output_dir + "/model_output.npz...")
+    np.savez_compressed(model_output_dir + '/model_output.npz', RR_1=RR_1, RR_2=RR_2, RR_cum=RR_cum)
     print('Done')
+    # plot recog_rate to see if any differences in confusion matr and this
+    if plot_recog_rate:
+        RR_0 = {emotion: 0 for emotion in emotions}
+        RR_1 = {emotion: 0 for emotion in emotions}
+        RR_cum = {emotion: 0 for emotion in emotions}
+        I_0 = {emotion: 0 for emotion in emotions}
+        I_1 = {emotion: 0 for emotion in emotions}
+        I = {emotion: 0 for emotion in emotions}
+
+        print('Predicting emotion from model...')
+        for i, vid in enumerate(test_X):
+            gt = test_y[i]
+            predictions = model.predict(vid)
+            I[gt] += 1
+            if top_2[0] == gt:
+                I_0[gt] += 1
+            elif len(top_2) > 1:  # might only be 1 prediction across timeseries
+                I_1[gt] += 1
+
+        # Calculate RR(0), RR(1) for each emotion
+        for emotion in emotions:
+            RR_0[emotion] = I_0[emotion] / I[emotion]
+            RR_1[emotion] = I_1[emotion] / I[emotion]
+            RR_cum[emotion] = RR_0[emotion] + RR_1[emotion]
+
+        with open('../../data/paco/model_output.txt', 'w') as f:
+            print("Writing recognition results to data/model_output.txt...")
+            f.write('Emotion,RR_0,RR_1,RR_cum \n')
+            for emotion in emotions:
+                f.write(emotion + ',' + str(RR_0[emotion]) + "," + str(RR_1[emotion]) + "," + str(RR_cum[emotion]) + "\n")
+            print('Done')
 
 
-def hmm():
-    train_X, train_y, test_X, test_y = get_train_test_soft_assign()
+def hmm(paco=False, override_model=False, rmv_fear=False):
+    if paco:
+        train_X, train_y, test_X, test_y = get_train_test_soft_assign(train_fpath='../../data/paco/training/train_soft_assign.npz', test_fpath='../../data/paco/test/test_soft_assign.npz', paco=paco, rmv_fear=rmv_fear)
+    else:
+        train_X, train_y, test_X, test_y = get_train_test_soft_assign(paco=paco, rmv_fear=rmv_fear)
 
     # Load model
-    if not os.path.isfile('../../models/HMM.json'):
-        model = train_model(train_X, train_y)
+    hmm_json = '../../models/HMM_paco.json' if paco else '../../models/HMM.json'
+    if not os.path.isfile(hmm_json) or override_model:
+        model = train_model(train_X, train_y, hmm_json_fpath=hmm_json)
     else:
-        with open('../../models/HMM.json', 'rb') as f:
+        print('Loading model from ' + hmm_json)
+        with open(hmm_json, 'rb') as f:
             model = simplejson.load(f)
             model = HiddenMarkovModel.from_json(model)
 
     # Test model
-    hmm_inference(model, test_X, test_y)
+    model_output_dir = '../../data/paco' if paco else '../../data/action_db'
+    hmm_inference(model, test_X, test_y, model_output_dir=model_output_dir)
 
-def plot_recog_rate():
-    full_emotion_names = {'ang': 'anger', 'fea': 'fear', 'hap': 'happiness', 'sad': 'sadness', 'unt': 'untrustworthiness'}
+
+def plot_recog_rate(paco=False):
+    if paco:
+        model_output_fname = '../../data/paco/model_output.txt'
+        full_emotion_names = {'ang': 'anger', 'fea': 'fear', 'hap': 'happiness', 'neu': 'neutral', 'sad': 'sadness'}
+    else:
+        model_output_fname = '../../data/action_db/model_output.txt'
+        full_emotion_names = {'ang': 'anger', 'fea': 'fear', 'hap': 'happiness', 'sad': 'sadness',
+                              'unt': 'untrustworthiness'}
+
     d = {'emotion': [], 'Key': [], 'recognition rate (%)': []}
-    with open('../../data/model_output.txt', 'r') as f:
+
+    with open(model_output_fname, 'r') as f:
         next(f)
         for line in f:
             recog_rates = line.split(",")
@@ -176,22 +270,26 @@ def plot_recog_rate():
             d['Key'].append('recognition rates at position 2')
             d['recognition rate (%)'].append(float(recog_rates[2])*100)
             d['emotion'].append(emotion)
-            d['Key'].append('recognition rates at position 3')
+            d['Key'].append('cumulative recognition rates at pos 1,2')
             d['recognition rate (%)'].append(float(recog_rates[3])*100)
-            d['emotion'].append(emotion)
-            d['Key'].append('cumulative recognition rates at pos 1,2,3')
-            d['recognition rate (%)'].append(float(recog_rates[4])*100)
 
     df = pd.DataFrame(data=d)
     sns.factorplot(x='emotion', y='recognition rate (%)', hue='Key', data=df, kind='bar')
     sns.despine(offset=10, trim=True)
     print('Saving plot...')
-    plt.savefig('../../plots/recog_rate.png')
+    if paco:
+        plt.savefig('../../plots/paco/recog_rate.png')
+    else:
+        plt.savefig('../../plots/action_db/recog_rate.png')
     plt.show()
 
-def confusion_mat():
+
+def confusion_mat(paco=False):
     n_emotions = len(emotions)
-    recog_rates = np.load('../../data/model_output.npz', encoding='latin1')
+    if paco:
+        recog_rates = np.load('../../data/paco/model_output.npz', encoding='latin1')
+    else:
+        recog_rates = np.load('../../data/action_db/model_output.npz', encoding='latin1')
     RR_1 = recog_rates['RR_1'].item()
     RR_cum = recog_rates['RR_cum'].item()
     conf_mat_RR_1 = np.zeros((n_emotions,n_emotions))
@@ -222,10 +320,13 @@ def confusion_mat():
 
 
 if __name__ == '__main__':
-    emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
+    # emotions = ['ang', 'fea', 'hap', 'sad', 'unt'] # actions_db
     # hmm()
-    confusion_mat()
-
+    # confusion_mat()
+    emotions = ['ang', 'hap', 'neu', 'sad']
+    hmm(paco=True, override_model=True, rmv_fear=True)
+    confusion_mat(paco=True)
+    # plot_recog_rate(paco=True)
 
 
 
