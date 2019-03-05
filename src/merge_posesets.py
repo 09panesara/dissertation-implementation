@@ -1,18 +1,23 @@
 ''' Merge emotion category posesets to eliminate redundant elements '''
-import os
 import numpy as np
 import random
+from collections import Counter
 from sklearn import preprocessing
 
-emotions = emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
-def get_centers(dir):
+
+def get_centers(dir, keep_by_emotion=False):
     print('Loading centers...')
-    cluster_centers = [np.load(dir+'/clusters_' + emotion + '.npz', encoding='latin1') for emotion in emotions if os.path.isfile(dir+'/clusters_' + emotion + '.npz')]
+    cluster_centers = []
+    for emotion in emotions:
+        cluster_centers.append(np.load(dir+'/clusters_' + emotion + '.npz', encoding='latin1'))
+    # cluster_centers = [np.load(dir+'/clusters_' + emotion + '.npz', encoding='latin1') for emotion in emotions if os.path.isfile(dir+'/clusters_' + emotion + '.npz')]
     cluster_centers = [clusters['predicted_centers'] for clusters in cluster_centers]
     # Flatten
-    cluster_centers = [center for emotion_center_set in cluster_centers for center in emotion_center_set]
-
-    return _convert_np_arr_to_set(cluster_centers)
+    if keep_by_emotion:
+        return cluster_centers
+    else:
+        cluster_centers = [center for emotion_center_set in cluster_centers for center in emotion_center_set]
+        return _convert_np_arr_to_set(cluster_centers)
 
 def _euclid_distance(c1, c2):
     c1 = np.array(c1)
@@ -30,8 +35,10 @@ def merge_centers(centers, thresh):
     old_centers = set([])
     new_centers = _convert_np_arr_to_set(centers)
     print('Merging with threshold: ' + str(thresh))
-
+    i = 1
     while old_centers != new_centers:
+        # print ('Iteration ' + str(i))
+        i+= 1
         old_centers = new_centers
         no_centers = len(old_centers)
         # choose center at random and eliminate other centroid at < thresh away
@@ -42,10 +49,11 @@ def merge_centers(centers, thresh):
                 break
             center = random.randint(1, no_centers)
             picked.append(center)
-            distances = [i for i, c in enumerate(old_centers) if c != center and _euclid_distance(c, center) < thresh]
-            if len(distances) > 0:
-                rmv_index = random.choice(distances)
-                new_centers = [center for center in old_centers if center != old_centers[rmv_index]]
+            distance_indices = [i for i, c in enumerate(old_centers) if c != center and _euclid_distance(c, center) < thresh]
+            if len(distance_indices) > 0:
+                rmv_index = random.choice(distance_indices)
+                new_centers = old_centers[:rmv_index] + old_centers[rmv_index+1:]
+                # new_centers = [center for center in old_centers if center != old_centers[rmv_index]]
                 removed = True
 
     return new_centers
@@ -62,11 +70,9 @@ def _calc_dist(centers):
     print(np.mean(dist))
 
 
-def find_thresh():
-    dir = '../data/clusters'
+def find_thresh(dir='../data/action_db/clusters'):
     emotion_centers = get_centers(dir)
-    thresholds = [i for i in range(500, 10000, 500)] # pick thresh = 6500
-    # thresholds = [3.5, 4, 4.5, 5, 5.5, 6]
+    thresholds = [i for i in range(100000000, 250000000, 5000000)] # pick thresh = 6500 # for actions_db
     dict_size = []
     for threshold in thresholds:
         merged = merge_centers(emotion_centers, threshold)
@@ -77,15 +83,63 @@ def find_thresh():
         for i in range(len(thresholds)):
             file.write(str(thresholds[i]) + ' ' + str(dict_size[i]) + "\n")
 
-if __name__ == '__main__':
-    dir = '../data/clusters'
+def merge_centers_paco():
+    ''' Merge centers for paco '''
+    emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
+    dir = '../data/paco/clusters'
     emotion_centers = get_centers(dir)
-    # emotion_centers = preprocessing.scale(emotion_centers)
-    thresh = 6500
+    # find_thresh(dir)
+
+    thresh = 370000
     new_centers = merge_centers(emotion_centers, thresh=thresh)
+    # get emotion category each merged center belongs to
+    emotion_centers = get_centers(dir, keep_by_emotion=True)
+    emotions_of_merged = ['' for c in new_centers]
+    for i, center in enumerate(new_centers):
+        for j in range(len(emotions)):
+            if center in emotion_centers[j]:
+                emotions_of_merged[i] = emotions[j]
+
+    counter = Counter(emotions_of_merged)
+    print(counter)
+
     print('Saving merged centers...')
-    np.savez_compressed('../data/merged_centers.npz', merged_centers=new_centers, thresh=thresh)
+    np.savez_compressed('../data/paco/clusters/merged_centers.npz', merged_centers=new_centers, thresh=thresh,
+                        centers_emotions=emotions_of_merged)
     print('Done.')
+
+
+def merge_centers_action_db():
+    ''' Merge centers for actions db '''
+    dir = '../data/action_db/clusters'
+    emotion_centers = get_centers(dir)
+    # find_thresh(dir)
+    thresh = 65000000 # for action db
+    new_centers = merge_centers(emotion_centers, thresh=thresh)
+
+    # get emotion category each merged center belongs to
+    emotion_centers = get_centers(dir, keep_by_emotion=True)
+    emotions_of_merged = ['' for c in new_centers]
+    print(len(new_centers))
+    for i, center in enumerate(new_centers):
+        for j in range(len(emotions)):
+            for k, c in enumerate(emotion_centers[j]):
+                if (c == center).all():
+                    emotions_of_merged[i] = emotions[j]
+
+    counter = Counter(emotions_of_merged)
+    print(counter)
+
+    print('Saving merged centers...')
+    np.savez_compressed('../data/action_db/clusters/merged_centers.npz', merged_centers=new_centers, thresh=thresh,
+                        centers_emotions=emotions_of_merged)
+    print('Done.')
+
+
+if __name__ == '__main__':
+    emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
+    merge_centers_action_db()
+
 
 
 
