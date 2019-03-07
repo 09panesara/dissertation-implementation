@@ -95,10 +95,12 @@ def merge_centers_paco():
     # get emotion category each merged center belongs to
     emotion_centers = get_centers(dir, keep_by_emotion=True)
     emotions_of_merged = ['' for c in new_centers]
+    print(len(new_centers))
     for i, center in enumerate(new_centers):
         for j in range(len(emotions)):
-            if center in emotion_centers[j]:
-                emotions_of_merged[i] = emotions[j]
+            for k, c in enumerate(emotion_centers[j]):
+                if (c == center).all():
+                    emotions_of_merged[i] = emotions[j]
 
     counter = Counter(emotions_of_merged)
     print(counter)
@@ -137,8 +139,10 @@ def merge_centers_action_db():
 
 
 if __name__ == '__main__':
-    emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
-    merge_centers_action_db()
+    # emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
+    # merge_centers_action_db()
+    emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
+    merge_centers_paco()
 
 
 

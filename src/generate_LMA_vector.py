@@ -6,30 +6,8 @@ import os
 import math
 
 
-def normalise_keypoints(keypoints):
-    '''
-    Transformations put shoulders and hip center in same plane parallel to yOz plane, put both shoulders at same height
-    :param keypoints: 3D array of keypoint frames dimension n x 17 x 2 where n = no. frames
-                      [[[x1,y1,z1],[x2,y2,z2],...], [...], ...]
-    :return:
-    '''
-    keypoints = np.array(keypoints)
 
-    # Translate body to set hip center at origin of landmark
-    normalised_kpts = keypoints - np.tile(keypoints[:, :1], [17, 1])
-    # Rotate axis z->x, x-> y, y->z
-    normalised_kpts = [[[joint[2], joint[0], joint[1]] for joint in frame] for frame in normalised_kpts]
-    # Rotate body around y axis to set left and right shoulders in plane // to yOz plane
-
-    # Rotate body around z axis to set shoulder and hip centers in a plane // to yOz plane
-    # Rotate body around x acis to set let and right shoulders in plane // to zOx plane
-    # Translate body to put hip center at initial position
-    normalised_kpts = normalised_kpts + np.tile(keypoints[:, :1], [17, 1])
-
-    return normalised_kpts
-
-
-def calculate_angle(a, c, b=[0,0,0], degrees=False):
+def calculate_angle(a, c, b=[0, 0, 0], degrees=False):
     ''' Returns angle between ab and bc '''
     ba = a - b
     bc = c - b
@@ -39,7 +17,6 @@ def calculate_angle(a, c, b=[0,0,0], degrees=False):
         return np.degrees(angle)
     else:
         return angle
-
 
 def dist_btwn_vectors(a, b):
     ''' Returns distance between two 3D points '''
@@ -58,7 +35,6 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     LMA_vector.update({joints_by_index[i] + '_z': [frame[i][2] for frame in keypoints] for i in range(17)})
     LMA_vector['timestep_btwn_frame'] = timestep_between_frame
 
-    keypoints = normalise_keypoints(keypoints)
 
     # Approximate center of mass as avg of points
     center_of_mass = [[np.mean(frame[:,0]), np.mean(frame[:,1]), np.mean(frame[:,2])] for frame in keypoints]
@@ -98,9 +74,9 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     d_LFoot_center = np.array(d_LFoot_center)
     d_RFoot_center = np.array(d_RFoot_center)
 
-    LMA_vector['dys_hands'] = np.divide(d_LWrist_center, d_LWrist_center + d_RWrist_center) # TODO: replace with non-dominant hand/knee/foot
-    LMA_vector['dys_knees'] = np.divide(d_LKnee_center, d_LKnee_center + d_RKnee_center)
-    LMA_vector['dys_feet'] =  np.divide(d_LFoot_center, d_LFoot_center + d_RFoot_center)
+    LMA_vector['dys_hands'] = list(np.divide(d_LWrist_center, d_LWrist_center + d_RWrist_center)) # TODO: replace with non-dominant hand/knee/foot
+    LMA_vector['dys_knees'] = list(np.divide(d_LKnee_center, d_LKnee_center + d_RKnee_center))
+    LMA_vector['dys_feet'] =  list(np.divide(d_LFoot_center, d_LFoot_center + d_RFoot_center))
 
     # single
     LMA_vector['d_LWrist_LShoulder'] = [dist_btwn_vectors(frame[joints['LWrist']], frame[joints['LShoulder']]) for frame in keypoints]
@@ -177,16 +153,14 @@ def generate_LMA_features(keypoints, timestep_between_frame):
     LMA_vector['LElbow_fb_motion'] = RElbow_fb_motion
 
     ''' Add original pose keypoints '''
-
-
+    for key in LMA_vector:
+        if key != 'timestep_btwn_frame':
+            LMA_vector[key] = list(LMA_vector[key])
+    # LMA_vector = {key: list(LMA_vector[key]) for key in LMA_vector}
     return LMA_vector
 
 
 
-keypoints_3d = data_utils.load_3d_keypoints(keypoints_folder='../data')
-
-LMA_df = pd.DataFrame()
-# TODO: update with LMA feature names
 
 ''' H36M joint names '''
 joints = {
@@ -217,6 +191,10 @@ joints_by_index = list(joints.keys())
 
 
 def LMA_action_db():
+    keypoints_3d = data_utils.load_3d_keypoints(keypoints_folder='../data/action_db')
+
+    LMA_df = pd.DataFrame()
+    # TODO: update with LMA feature names
     timesteps = data_utils.get_timestep(timesteps_path='../data/action_db/timesteps.npz',
                                         videos_dir='../VideoPose3D/videos/walking_videos')  # float
 
@@ -235,21 +213,33 @@ def LMA_action_db():
 
 
 def LMA_paco():
-    # need to adjust for paco dataset
-    # movements were 30 seconds, so approximate timestep between frames as 30/no_timesteps
-    timesteps = data_utils.get_paco_timestep(timesteps_path='../data/action_db/timesteps.npz',
-                                        videos_dir='../VideoPose3D/videos/walking_videos')  # float
+    print('Computing LMA feature vectors for PACO dataset...')
+    paco_emotions = ['ang', 'fea', 'hap', 'sad', 'neu']
+    keypoints_3d = data_utils.load_paco_keypoints(normalised=True)
+
+    LMA_df = pd.DataFrame()
+
+
+    ''' Laban Movement Analysis Features Extraction '''
     for subject in keypoints_3d:
         for action in keypoints_3d[subject]:
             for emotion in keypoints_3d[subject][action]:
                 for i, data in enumerate(keypoints_3d[subject][action][emotion]):
                     kpts = data['keypoints']
                     timestep = data['timestep']
-                    print('Subject: %s, action: %s, emotion: %s, intensity: %s' % (
+                    print('Subject: %s, action: %s, emotion: %s' % (
                     subject, action, emotion))
                     LMA_features = {'subject': subject, 'action': action, 'emotion': emotion}
                     LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timestep))
                     LMA_df = LMA_df.append(LMA_features, ignore_index=True)
 
-    # Write pandas dataframe to compressed h5.py file
-    LMA_df.to_hdf('../data/paco/LMA_features.h5', key='df', mode='w')
+    for emotion in paco_emotions:
+        df = LMA_df.loc[LMA_df['emotion']==emotion]
+        print('Saving...')
+        df.to_hdf('../data/paco/LMA_features_' + emotion + '.h5', key='df', mode='w')
+        print('Done.')
+
+
+
+if __name__ == '__main__':
+    LMA_paco()

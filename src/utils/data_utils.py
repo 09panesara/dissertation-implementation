@@ -6,6 +6,7 @@ import re
 import shutil
 from utils.split_train_test import split_train_test
 from moviepy.editor import VideoFileClip
+import ast
 
 # Joints in H3.6M -- data has 32 joints, but only 17 that move; these are the indices.
 H36_INDICES_3D_POSE_BASELINE = [0, 1, 2, 3, 6, 7, 8, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]
@@ -51,11 +52,12 @@ def join_3d_keypoints(keypoints_folder, output_dir='../../data'):
     print('Done.')
 
 
-def load_3d_keypoints(keypoints_folder='../data/3d-pose-baseline', kpts_filename = '3dpb_keypoints.npz'):
-    print('Loading 3d keypoints...')
+def load_3d_keypoints(keypoints_folder='../data/action_db/3d-pose-baseline', kpts_filename = '3dpb_keypoints.npz'):
+    ''' Loads 3d-pose-baseline keypoints  '''
+    print('Loading Actiond DB 3d keypoints...')
     assert(os.path.isdir(keypoints_folder))
     if not os.path.isfile(keypoints_folder + '/' + kpts_filename):
-        return pose_baseline_to_h36m(keypoints_folder + '/3d-pose-baseline')
+        return pose_baseline_to_h36m('../data/3d-pose-baseline')
     else:
         return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
 
@@ -105,7 +107,7 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
 
 
 def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_videos'):
-    # TODO
+    # loads timesteps for actions database videos
     if os.path.isfile(timesteps_path):
         print('Loading timesteps...')
         return np.load(timesteps_path, encoding='latin1')['timesteps'].item()
@@ -146,30 +148,50 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
         np.savez_compressed(timesteps_path, timesteps=timesteps)
         return timesteps
 
-# def clean_LMA(path='../data/LMA_features.h5'):
-#     df = pd.read_hdf(path)
-#     column = df.columns.values
-#     for row in df:
-#         if
 
-def load_LMA(path):
-    if path:
-        return pd.read_hdf(path)
-    else:
-        return pd.read_hdf('../data/LMA_features.h5')
+def load_paco_keypoints(keypoints_folder='../data/paco', kpts_filename='paco_keypoints.npz', normalised=False):
+    print('Loading paco 3d keypoints...')
+    if normalised:
+        kpts_filename = '/normalised_' + kpts_filename
 
-def get_train_test_set(folder='../data', LMA_path=None):
-    if not os.path.isfile(folder + '/' + 'train_data.h5') and not os.path.isfile(folder + '/' + 'test_data.h5'):
+    return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
+
+
+def load_LMA(folder):
+    if 'paco' in folder:
+        df = pd.DataFrame()
+        paco_emotions = ['ang', 'fea', 'hap', 'sad', 'neu']
+        for emotion in paco_emotions:
+            df_emotion = pd.read_hdf(folder+'/LMA_features_' + emotion + '.h5')
+            df = df.append(df_emotion)
+
+        print('no rows: ' + str(len(df)))
+        return df
+    return pd.read_hdf(folder + "/LMA_features.h5")
+
+
+
+def get_train_test_set(folder='../data/action_db'):
+    if not os.path.isfile(folder+ '/training/train_data.h5') and os.path.isfile(folder+ '/training/train_data.csv') and os.path.isfile(folder + '/test/test_data.h5'):
+        print('Getting train from csv, test data')
+        train = pd.read_csv(folder + '/training/train_data.csv').iloc[:, 1:]
+        test = pd.read_hdf(folder + '/test/test_data.h5')
+    elif not os.path.isfile(folder + '/training/train_data.h5') and not os.path.isfile(folder + '/test/test_data.h5'):
         print('Generating train and test datasets')
-        LMA = load_LMA(LMA_path)
-        train, test = split_train_test(LMA, 80, 20)
+        LMA = load_LMA(folder)
+        train, test = split_train_test(LMA, 80, 20, folder)
     else:
         print('Getting train, test data')
-        train = pd.read_hdf(folder + '/train_data.h5')
-        test = pd.read_hdf(folder + '/test_data.h5')
+        train = pd.read_hdf(folder + '/training/train_data.h5')
+        test = pd.read_hdf(folder + '/test/test_data.h5')
     return train, test
 
 
+def convert_to_list(s):
+    try:
+        return ast.literal_eval(s)
+    except:
+        return [float(item) for item in s]
 
 if __name__ == '__main__':
     join_3d_keypoints('../../VideoPose3D/output/keypoints')
