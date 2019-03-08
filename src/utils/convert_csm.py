@@ -3,6 +3,7 @@ import os
 import glob
 import numpy as np
 
+
 h36m_joints = [
     'Hip',
     'RHip',
@@ -22,6 +23,7 @@ h36m_joints = [
     'RElbow',
     'RWrist'
 ]
+
 
 joints_x = {h36m_joints[i]: i*3 for i in range(17)}
 joints_y = {h36m_joints[i]: i*3+1 for i in range(17)}
@@ -66,6 +68,80 @@ def process_CSM(dir, output_dir='../../data/paco'):
                      'RMT5',
                      'LTOE',
                      'RTOE']
+
+    #TODO use alternative markers if these are in file.
+    CSM_alt_order = ['TopHead',
+                     'LFrontHead',
+                     'RFrontHead',
+                     'LBackHead',
+                     'RBackHead',
+                     'TopSpine',
+                     'Sternum',
+                     'Shoulder_Asym',
+                     'Chest',
+                     'LShoulder',
+                     'LOuterElbow',
+                     'LWristThumb',
+                     'LWristPinky',
+                     'LHand',
+                     'RShoulder',
+                     'ROuterElbow',
+                     'RWristThumb',
+                     'RWristPinky',
+                     'RHand',
+                     'MiddleBack',
+                     'LowerBack',
+                     'LFrontWaist',
+                     'RFrontWaist',
+                     'LBackWaist',
+                     'RBackWaist',
+                     'LOuterKnee',
+                     'ROuterKnee',
+                     'LAnkle',
+                     'RAnkle',
+                     'LHeel',
+                     'RHeel',
+                     'LOuterMeta',
+                     'ROuterMeta',
+                     'LToe',
+                     'RToe']
+
+    # markers to use if alternative matche
+    CSM_alt_markers = ['TopHead',
+                     'LFHD',
+                     'RFHD',
+                     'LBHD',
+                     'RBHD',
+                     'C7',
+                     'Sternum',
+                     'Shoulder_Asym',
+                     'Chest',
+                     'LSHO',
+                     'LELB',
+                     'LWristThumb',
+                     'LWristPinky',
+                     'LFIN',
+                     'RSHO',
+                     'RELB',
+                     'RWristThumb',
+                     'RWristPinky',
+                     'RFIN',
+                     'T10',
+                     'LowerBack',
+                     'LFWT',
+                     'RFWT',
+                     'LBWT',
+                     'RBWT',
+                     'LOuterKnee',
+                     'ROuterKnee',
+                     'LAnkle',
+                     'RAnkle',
+                     'LHEL',
+                     'RHEL',
+                     'LOuterMeta',
+                     'ROuterMeta',
+                     'LToe',
+                     'RToe']
     ''' 
     CSM acronym meanings
         Left Front head                   'LFHD',
@@ -103,15 +179,20 @@ def process_CSM(dir, output_dir='../../data/paco'):
         Right Toe                         'RTOE'
         
     '''
+    files_to_manually_process = []
+    positions_3d = {}
+    emotions = {'an': 'ang', 'af': 'fea', 'sa': 'sad', 'ha': 'hap', 'nu': 'neu'}
 
     for csm_dir in dirs:
         files = sorted(list(glob.glob(csm_dir + '/*.csm')))
-        positions_3d = {}
-        emotions = {'an': 'ang', 'af': 'fea', 'sa': 'sad', 'ha': 'hap', 'nu': 'neu'}
+
+        files = [f for f in files if 'walk' in f]
         for filename in files:
-            if 'walk' not in filename: # skip if not walking
+            print(filename)
+            if '_e_' in filename:
+                print('THIS HAS _e_')
+                files_to_manually_process.append(filename)
                 continue
-            joints = {joint: 0 for joint in h36m_joints}
             curr_positions = [] # curr_positions = [[x0,y0,z0,x1,y1,z1,...],...] where each sublist = frame
             fname = os.path.basename(filename)
             index = fname.find('_')
@@ -130,11 +211,10 @@ def process_CSM(dir, output_dir='../../data/paco'):
             if action not in positions_3d[subject]:
                 positions_3d[subject][action] = {}
             if emotion not in positions_3d[subject][action]:
-                positions_3d[subject][action][
-                    emotion] = {}  # 1, 2 TODO work out whether each actor asked to do it twice or what?
-                positions_3d[subject][action][emotion]['keypoints'] = []
+                positions_3d[subject][action][emotion] = []
 
             with open(filename, 'r') as f:
+                use_alt_markers = False
                 no_frames = ''
                 while not no_frames.startswith('$NumFrames'):
                     no_frames = f.readline()
@@ -144,6 +224,20 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     curr_frame = f.readline()
                 # get timestep between frames
                 timestep = 1 / int(curr_frame.split(" ")[-1].strip())
+
+                while not curr_frame.startswith('$Order'):
+                    curr_frame = f.readline()
+                curr_frame = f.readline().strip()
+                file_order = curr_frame.split(" ")
+                if file_order != CSM_markers:
+                    if file_order == CSM_alt_order:
+                        use_alt_markers = True
+                        print('Alternative CSM markers')
+                    else:
+                        print('File ' + filename + ' needs to be manually processed.')
+                        files_to_manually_process.append(filename)
+                        continue
+
                 while not curr_frame.startswith('$Points'):
                     curr_frame = f.readline()
                 # At first frame
@@ -159,20 +253,26 @@ def process_CSM(dir, output_dir='../../data/paco'):
                         frame = frame[:-1]
 
                     # split into x,y,z
-                    assert len(CSM_markers) == len(frame)
-                    no_csm_joints = len(x)
 
-                    x = [f for i, f in enumerate(f) if i%3 == 0]
-                    y = [f for i, f in enumerate(f) if i % 3 == 1]
-                    z = [f for i, f in enumerate(f) if i % 3 == 2]
+                    x = [pt for i, pt in enumerate(frame) if i%3 == 0]
+                    y = [pt for i, pt in enumerate(frame) if i % 3 == 1]
+                    z = [pt for i, pt in enumerate(frame) if i % 3 == 2]
+
                     # 'DROPOUT' = missing data
-                    x = [0 if i=='DROPOUT' else int(i) for i in x]
-                    y = [0 if i == 'DROPOUT' else int(i) for i in y]
-                    z = [0 if i == 'DROPOUT' else int(i) for i in z]
+                    x = [0 if i=='DROPOUT' else float(i) for i in x]
+                    y = [0 if i == 'DROPOUT' else float(i) for i in y]
+                    z = [0 if i == 'DROPOUT' else float(i) for i in z]
 
-                    x = {CSM_markers[i]: x[i] for i in range(no_csm_joints)}
-                    y = {CSM_markers[i]: y[i] for i in range(no_csm_joints)}
-                    z = {CSM_markers[i]: z[i] for i in range(no_csm_joints)}
+                    no_csm_joints = int(len(frame)/3)
+
+                    if not use_alt_markers:
+                        x = {CSM_markers[i]: x[i] for i in range(no_csm_joints)}
+                        y = {CSM_markers[i]: y[i] for i in range(no_csm_joints)}
+                        z = {CSM_markers[i]: z[i] for i in range(no_csm_joints)}
+                    else:
+                        x = {CSM_alt_markers[i]: x[i] for i in range(no_csm_joints)}
+                        y = {CSM_alt_markers[i]: y[i] for i in range(no_csm_joints)}
+                        z = {CSM_alt_markers[i]: z[i] for i in range(no_csm_joints)}
 
                     # get joints data
 
@@ -211,14 +311,36 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     frame_joints[joints_y['Thorax']] = y['C7']
                     frame_joints[joints_z['Thorax']] = z['C7']
 
-                    frame_joints[joints_x['Neck/Nose']] = x['CLAV']
-                    frame_joints[joints_y['Neck/Nose']] = y['CLAV']
-                    frame_joints[joints_z['Neck/Nose']] = z['CLAV']
 
                     # head is center of LFHD RFHD LBHD RBHD
                     frame_joints[joints_x['Head']] = (x['LFHD'] + x['RFHD'] + x['LBHD'] + x['RBHD']) / 4
                     frame_joints[joints_y['Head']] = (y['LFHD'] + y['RFHD'] + y['LBHD'] + y['RBHD']) / 4
                     frame_joints[joints_z['Head']] = (z['LFHD'] + z['RFHD'] + z['LBHD'] + z['RBHD']) / 4
+
+                    if use_alt_markers:
+                        # used in LMA vector for center of shoulders - top of spine = best approximation
+                        frame_joints[joints_x['Neck/Nose']] = x['C7']
+                        frame_joints[joints_y['Neck/Nose']] = y['C7']
+                        frame_joints[joints_z['Neck/Nose']] = z['C7']
+
+                        frame_joints[joints_x['LWrist']] = (x['LWristThumb'] + x['LWristPinky']) / 2
+                        frame_joints[joints_y['LWrist']] = (y['LWristThumb'] + y['LWristPinky']) / 2
+                        frame_joints[joints_z['LWrist']] = (z['LWristThumb'] + z['LWristPinky']) / 2
+                        frame_joints[joints_x['RWrist']] = (x['RWristThumb'] + x['RWristPinky']) / 2
+                        frame_joints[joints_y['RWrist']] = (y['RWristThumb'] + y['RWristPinky']) / 2
+                        frame_joints[joints_z['RWrist']] = (z['RWristThumb'] + z['RWristPinky']) / 2
+
+                    else:
+                        frame_joints[joints_x['Neck/Nose']] = (x['C7'] + x['CLAV']) / 2
+                        frame_joints[joints_y['Neck/Nose']] = (y['C7'] + y['CLAV']) / 2
+                        frame_joints[joints_z['Neck/Nose']] = (z['C7'] + z['CLAV']) / 2
+
+                        frame_joints[joints_x['LWrist']] = (x['LWRA'] + x['LWRB']) / 2
+                        frame_joints[joints_y['LWrist']] = (y['LWRA'] + y['LWRB']) / 2
+                        frame_joints[joints_z['LWrist']] = (z['LWRA'] + z['LWRB']) / 2
+                        frame_joints[joints_x['RWrist']] = (x['RWRA'] + x['RWRB']) / 2
+                        frame_joints[joints_y['RWrist']] = (y['RWRA'] + y['RWRB']) / 2
+                        frame_joints[joints_z['RWrist']] = (z['RWRA'] + z['RWRB']) / 2
 
                     frame_joints[joints_x['LShoulder']] = x['LSHO']
                     frame_joints[joints_y['LShoulder']] = y['LSHO']
@@ -234,22 +356,30 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     frame_joints[joints_y['RElbow']] = y['RELB']
                     frame_joints[joints_z['RElbow']] = z['RELB']
 
-                    frame_joints[joints_x['LWrist']] = (x['LWRA'] + x['LWRB']) / 2
-                    frame_joints[joints_y['LWrist']] = (y['LWRA'] + y['LWRB']) / 2
-                    frame_joints[joints_z['LWrist']] = (z['LWRA'] + z['LWRB']) / 2
-                    frame_joints[joints_x['RWrist']] = (x['RWRA'] + x['RWRB']) / 2
-                    frame_joints[joints_y['RWrist']] = (y['RWRA'] + y['RWRB']) / 2
-                    frame_joints[joints_z['RWrist']] = (z['RWRA'] + z['RWRB']) / 2
+
+
+
+                    assert len(frame_joints) == 51
+                    frame_joints = [[frame_joints[i], frame_joints[i+1], frame_joints[i+1]] for i in range(0,51,3)]
 
                     # append to curr_positions
                     curr_positions.append(frame_joints)
 
-                positions_3d[subject][action][emotion].append(curr_positions)
+                positions_3d[subject][action][emotion].append({'keypoints': curr_positions, 'timestep': timestep})
+
+
 
     print('Saving...')
-    np.savez_compressed(output_dir + '/paco_keypoints.npz', positions_3d=positions_3d)
+    np.savez_compressed(output_dir + '/keypoints.npz', positions_3d=positions_3d)
     print('Done.')
+    print("Files that need manual processing: ")
+    print(files_to_manually_process)
+
     return positions_3d
+
+
+
+
 
 if __name__ == '__main__':
     process_CSM('../../data/paco/csm')

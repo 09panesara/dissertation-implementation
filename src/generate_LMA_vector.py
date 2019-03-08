@@ -214,11 +214,10 @@ def LMA_action_db():
 
 def LMA_paco():
     print('Computing LMA feature vectors for PACO dataset...')
-    paco_emotions = ['ang', 'fea', 'hap', 'sad', 'neu']
+    paco_emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
     keypoints_3d = data_utils.load_paco_keypoints(normalised=True)
 
     LMA_df = pd.DataFrame()
-
 
     ''' Laban Movement Analysis Features Extraction '''
     for subject in keypoints_3d:

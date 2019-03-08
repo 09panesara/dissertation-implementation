@@ -80,7 +80,7 @@ def normalise_space(keypoints):
     # mean center all positions such that pelvis (hip center) is (0,0,0)
     hip_centers = [frame[0] for frame in keypoints]
     normalised_kpts = [
-        [[joint[0] - hip_centers[i], joint[1] - hip_centers[i], joint[2] - hip_centers[i]] for joint in frame] for
+        [[joint[0] - hip_centers[i][0], joint[1] - hip_centers[i][1], joint[2] - hip_centers[i][2]] for joint in frame] for
         i, frame in enumerate(keypoints)]
     # already normalised by position, i.e. z axis = up
     # make orientation invariant by making hips parallel to x axis by rotating around z axis i.e. rotating x, y coord
@@ -119,8 +119,8 @@ def smooth_paco_keypoints(redo_normalisation=False):
                         timestep = data['timestep']
                         normalised_keypoints[subject][action][emotion].append({'keypoints': kpts, 'timestep': timestep})
         print('Saving...')
-        np.savez_compressed('../data/paco/normalised_keypoints.npz', normalised_keypoints=normalised_keypoints)
+        np.savez_compressed('../data/paco/normalised_keypoints.npz', positions_3d=normalised_keypoints)
         print('Done.')
 
 if __name__ == '__main__':
-    smooth_paco_keypoints()
+    smooth_paco_keypoints(redo_normalisation=True)

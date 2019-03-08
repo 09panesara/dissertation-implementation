@@ -152,15 +152,15 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
 def load_paco_keypoints(keypoints_folder='../data/paco', kpts_filename='paco_keypoints.npz', normalised=False):
     print('Loading paco 3d keypoints...')
     if normalised:
-        kpts_filename = '/normalised_' + kpts_filename
-
-    return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
+        return np.load(keypoints_folder + '/normalised_keypoints.npz', encoding='latin1')['positions_3d'].item()
+    else:
+        return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
 
 
 def load_LMA(folder):
     if 'paco' in folder:
         df = pd.DataFrame()
-        paco_emotions = ['ang', 'fea', 'hap', 'sad', 'neu']
+        paco_emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
         for emotion in paco_emotions:
             df_emotion = pd.read_hdf(folder+'/LMA_features_' + emotion + '.h5')
             df = df.append(df_emotion)

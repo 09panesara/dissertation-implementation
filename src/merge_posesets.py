@@ -72,7 +72,7 @@ def _calc_dist(centers):
 
 def find_thresh(dir='../data/action_db/clusters'):
     emotion_centers = get_centers(dir)
-    thresholds = [i for i in range(100000000, 250000000, 5000000)] # pick thresh = 6500 # for actions_db
+    thresholds = [i for i in range(100000000, 400000000, 10000000)] # pick thresh = 6500 # for actions_db
     dict_size = []
     for threshold in thresholds:
         merged = merge_centers(emotion_centers, threshold)
@@ -86,11 +86,10 @@ def find_thresh(dir='../data/action_db/clusters'):
 def merge_centers_paco():
     ''' Merge centers for paco '''
     emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
+    emotions = ['ang', 'fea', 'hap','sad']
     dir = '../data/paco/clusters'
     emotion_centers = get_centers(dir)
-    # find_thresh(dir)
-
-    thresh = 370000
+    thresh = 0
     new_centers = merge_centers(emotion_centers, thresh=thresh)
     # get emotion category each merged center belongs to
     emotion_centers = get_centers(dir, keep_by_emotion=True)
@@ -141,7 +140,8 @@ def merge_centers_action_db():
 if __name__ == '__main__':
     # emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
     # merge_centers_action_db()
-    emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
+    emotions = ['ang', 'fea', 'hap', 'sad']
+    # find_thresh(dir='../data/paco/clusters')
     merge_centers_paco()
 
 
