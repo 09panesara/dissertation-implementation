@@ -7,19 +7,25 @@ from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 
 class kmedians():
-    def __init__(self, k, no_frames, max_iter=100, random_state=0):
+    def __init__(self, k, no_frames, max_iter=100, random_state=30):
         self.k = k
         self.max_iter = max_iter
         self.random_state = random_state
         self.total_no_frames = no_frames
-        self.change_in_validity_thresh = 0.1
+        self.change_in_validity_thresh = 0.32
 
     def _e_step(self, X):
         ''' Assign points to clusters '''
-        self.labels_ = euclidean_distances(X, self.cluster_centers_).argmin(axis=1)
+        print('E step: Assigning points to clusters')
+        print(X.shape)
+        self.labels_ = [[euclidean(pt,center) for center in self.cluster_centers_] for pt in X]
+        print('Here')
+        self.labels_ = self.labels_.argmin(axis=1)
+        # self.labels_ = euclidean_distances(X, self.cluster_centers_).argmin(axis=1)
 
     def _m_step(self, X):
         ''' Calculate new centers from cluster median '''
+        print('M step: Calculate new centers from cluster median')
         old_centers = list(set(tuple(row) for row in self.cluster_centers_))
         old_centers = [list(center) for center in old_centers]
         clusters_indices = [[c for i, c in enumerate(self.labels_) if (self.cluster_centers_[i] == center).all()] for center in old_centers]
@@ -49,6 +55,8 @@ class kmedians():
             self._e_step(X)
             self._m_step(X)
             validity = self._check_validity(X)
+            print(validity)
+            print(abs(old_validity - validity))
             if abs(old_validity - validity) < self.change_in_validity_thresh:
                 break
             else:
@@ -74,7 +82,7 @@ class kmedians():
             inter = min(distances)
 
             validity = intra/inter
-
+            print('Current validity: %s' %(validity))
             return validity
 
         else: # Only one cluster, return maximum integer
@@ -90,12 +98,7 @@ class kmedians():
         return np.array(clusters)
 
 
-    # def _get_cmap(n, name='hsv'):
-    #     '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-    #     RGB color; the keyword argument name must be a standard mpl colormap name.'''
-    #     return plt.cm.get_cmap(name)
-
-    def _visualise_clusters(self, clusters, plot_name, show_plot=False):
+    def _visualise_clusters(self, clusters, plot_name, show_plot=False, paco=False):
         print('Visualising clusters...')
         cmap = plt.cm.get_cmap('Pastel1', len(clusters)).colors
         labels = [[cmap[i] for j in range(len(cluster))] for i, cluster in enumerate(clusters)]
@@ -118,7 +121,10 @@ class kmedians():
         ax.legend(labels)
         ax.grid()
         print('Saving plot...')
-        plt.savefig('../plots/' + plot_name)
+        if paco:
+            plt.savefig('../plots/paco_' + plot_name)
+        else:
+            plt.savefig('../plots/' + plot_name)
         if show_plot:
             plt.show()
         print('Done')

@@ -3,15 +3,9 @@ import numpy as np
 import pandas as pd
 import random
 from skmultilearn.model_selection import iterative_train_test_split
+from sklearn.model_selection import StratifiedKFold
 
-NO_OF_VIDEOS = 563
 
-
-'''
-TODO:
-split data into 80:20 training test
-Then split training into 80:20 train, test 5 times for cross-validation 
-'''
 
 def split(df, train_size=60, val_size=20, test_size=20):
     '''
@@ -20,6 +14,7 @@ def split(df, train_size=60, val_size=20, test_size=20):
     - roughly equal number of each actor
     saves train, validation, test set
     '''
+    NO_OF_VIDEOS = 563
     # Shuffle order of rows
     df = df.reindex(np.random.permutation(df.index))
 
@@ -80,16 +75,25 @@ def split(df, train_size=60, val_size=20, test_size=20):
     validation_df.to_hdf('../data/training/validation_data.h5', key='df', mode='w')
     test_df.to_hdf('../data/test/test_data.h5', key='df', mode='w')
 
-def split_train_test(df, train_size=80, test_size=20):
+
+def split_train_test(df, train_size=80, test_size=20, folder='../data/action_db'):
     def _convert_index_to_subj_emotion(y):
-        y = [subjects[y[0]-1], emotions[y[1]]]
+        y = [subjects[y[0]-1], EMOTIONS[y[1]]]
         return y
 
-    emotions = ['ang', 'fea', 'hap', 'neu', 'sad', 'unt']
-    subjects = ['1m', '2f', '3m', '4f', '5m', '6f', '7f', '8m', '9f', '10f', '11f', '12m', '13f', '14f', '15m', '16f',
-                '17f', '18f', '19m', '20f', '21m', '22f', '23f', '24f', '25m', '26f', '27m', '28f', '29f']
-    emotions_dict = {emotions[i]: int(i) for i in range(6)}
-    subjects_dict = {subjects[i]: int(i + 1) for i in range(29)}
+    if 'paco' not in folder:
+        EMOTIONS = ['ang', 'fea', 'hap', 'neu', 'sad', 'unt']
+        subjects = ['1m', '2f', '3m', '4f', '5m', '6f', '7f', '8m', '9f', '10f', '11f', '12m', '13f', '14f', '15m', '16f',
+                    '17f', '18f', '19m', '20f', '21m', '22f', '23f', '24f', '25m', '26f', '27m', '28f', '29f']
+    else:
+        # emotions = ['ang', 'fea', 'hap', 'sad', 'neu']
+        EMOTIONS = ['ang', 'hap', 'sad', 'neu']
+        subjects = ['ale', 'ali', 'alx', 'amc', 'bar', 'boo', 'chr', 'dav', 'din', 'dun', 'ele', 'emm', 'gra', 'ian', 'jan', 'jen', 'jua', 'kat', 'lin', 'mac', 'mar', 'mil', 'ndy', 'pet', 'rac', 'ros', 'she', 'shi', 'ste', 'vas']
+
+    df = df.reindex(np.random.permutation(df.index))
+
+    emotions_dict = {EMOTIONS[i]: int(i) for i in range(len(EMOTIONS))}
+    subjects_dict = {subjects[i]: int(i + 1) for i in range(len(subjects))}
     y_classes = ['subject', 'emotion']
     y = df[y_classes]
 
@@ -111,10 +115,20 @@ def split_train_test(df, train_size=80, test_size=20):
     train_df = pd.DataFrame(data=np.hstack((X_train, y_train)), columns=columns)
     test_df = pd.DataFrame(data=np.hstack((X_test, y_test)), columns=columns)
 
-    train_df.to_hdf('../data/training/train_data.h5', key='df', mode='w')
-    test_df.to_hdf('../data/test/test_data.h5', key='df', mode='w')
-    return train_df, test_df
+    print('Counts in train set')
+    for emotion in EMOTIONS:
+        print(emotion + ": " + str(len(train_df[train_df['emotion'] == emotion])))
+    print('Counts in test set')
+    for emotion in EMOTIONS:
+        print(emotion + ": " + str(len(test_df[test_df['emotion'] == emotion])))
 
+    print('Saving training data...')
+    train_df.to_csv(folder + '/training/train_data.csv')
+    # train_df.to_hdf(folder + '/training/train_data.h5', key='df', mode='w')
+    print('Saving test data...')
+    test_df.to_hdf(folder + '/test/test_data.h5', key='df', mode='w')
+    print('Done.')
+    return train_df, test_df
 
 
 def stratified_split(X, y, folds=5):
@@ -140,6 +154,34 @@ def stratified_split(X, y, folds=5):
     folds = [X[index] for index in index_list]
     classes = [y[index] for index in index_list]
     return folds, classes
+
+
+def cross_val(df, n=10):
+    print('Spliting into 10 folds...')
+    df = df.reindex(np.random.permutation(df.index))
+    drop_classes = ['subject', 'emotion']
+
+    y = np.array(df['emotion'])
+    X = df.drop(drop_classes, axis=1)
+    X = np.array(X)
+    # stratified 10 fold cross val
+    skf = StratifiedKFold(n_splits=n)
+    # skf.get_n_splits(X, y)
+    split = skf.split(X,y)
+    df_w_folds = df
+    df_w_folds['fold'] = 0
+    i = 0
+    for train_indices, test_indices in split:
+        df_w_folds.iloc[train_indices, df_w_folds.columns.get_loc('fold')] = i
+        i += 1
+
+    print(set(df_w_folds['fold']))
+
+    df_w_folds.to_hdf('../data/paco/10_fold_cross_val/LMA_features_crossfold.h5', key='df', mode='w')
+
+    print('Saving...Done.')
+    return folds
+
 
 
 if __name__ == '__main__':

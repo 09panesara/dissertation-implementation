@@ -121,6 +121,51 @@ def smooth_paco_keypoints(redo_normalisation=False):
         print('Saving...')
         np.savez_compressed('../data/paco/normalised_keypoints.npz', positions_3d=normalised_keypoints)
         print('Done.')
+    else:
+        normalised_keypoints = data_utils.load_paco_keypoints(normalised=True)
+
+    ''' Normalise by size '''
+    if not os.path.isfile('../data/paco/normalised_by_size_kpts.npz'):
+        normalised_by_size = {}
+        for subject in normalised_keypoints:
+            if subject not in normalised_by_size:
+                normalised_by_size[subject] = {}
+            for action in normalised_keypoints[subject]:
+                if action not in normalised_by_size[subject]:
+                    normalised_by_size[subject][action] = {}
+                for emotion in normalised_keypoints[subject][action]:
+                    if emotion not in normalised_by_size[subject][action]:
+                        normalised_by_size[subject][action][emotion] = []
+                    for i, data in enumerate(normalised_keypoints[subject][action][emotion]):
+                        print('Normalising vid ' + str(i) + ' for subject: ' + subject + ', emotion: ' + emotion + ' by size.')
+                        kpts = data['keypoints']
+                        kpts = normalise_by_size(kpts)
+                        timestep = data['timestep']
+                        normalised_by_size[subject][action][emotion].append({'keypoints': kpts, 'timestep': timestep})
+        print('Saving...')
+        np.savez_compressed('../data/paco/normalised_by_size_keypoints.npz', positions_3d=normalised_by_size)
+        print('Done.')
+
+def normalise_by_size(kpts):
+    ''' Assumed normalised by space already '''
+    no_joints = 17
+    avg_limb_length = np.zeros((no_joints, no_joints))  # matrix
+    joint_hierarchy = {}
+    parent = {}
+    normalised_kpts = np.array(kpts.shape)
+    for frame in kpts:
+        new_frame = [[] for i in range(no_joints)]
+        for i, joint in frame: # NEED TO UPDATE ORDER TO GO PARENTS FIRST
+            parent = frame[parent[i]]
+            alpha = avg_limb_length[parent[i],i] # i = child
+            x = parent[0] + alpha * (joint[0] - parent[0])
+            y = parent[1] + alpha * (joint[1] - parent[1])
+            z = parent[2] + alpha * (joint[2] - parent[2])
+            new_frame[i] = np.array([x,y,z]) # ENSURE SAME FORMAT OF NP ARRAYS IS KEPT
+        normalised_kpts.append(np.array(new_frame))
+
+
+
 
 if __name__ == '__main__':
     smooth_paco_keypoints(redo_normalisation=True)

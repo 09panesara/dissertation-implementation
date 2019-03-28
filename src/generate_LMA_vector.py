@@ -30,11 +30,10 @@ def _mean(x, y):
 
 # TODO: test
 def generate_LMA_features(keypoints, timestep_between_frame):
-    LMA_vector = {joints_by_index[i] +'_x': [frame[i][0] for frame in keypoints] for i in range(17)}
-    LMA_vector.update({joints_by_index[i] + '_y': [frame[i][1] for frame in keypoints] for i in range(17)})
-    LMA_vector.update({joints_by_index[i] + '_z': [frame[i][2] for frame in keypoints] for i in range(17)})
-    LMA_vector['timestep_btwn_frame'] = timestep_between_frame
-
+    # LMA_vector = {joints_by_index[i] +'_x': [frame[i][0] for frame in keypoints] for i in range(17)}
+    # LMA_vector.update({joints_by_index[i] + '_y': [frame[i][1] for frame in keypoints] for i in range(17)})
+    # LMA_vector.update({joints_by_index[i] + '_z': [frame[i][2] for frame in keypoints] for i in range(17)})
+    LMA_vector = {}
 
     # Approximate center of mass as avg of points
     center_of_mass = [[np.mean(frame[:,0]), np.mean(frame[:,1]), np.mean(frame[:,2])] for frame in keypoints]
@@ -150,13 +149,10 @@ def generate_LMA_features(keypoints, timestep_between_frame):
 
     LMA_vector['forward_tilt_angle'] = forward_tilt_angle
     LMA_vector['LElbow_fb_motion'] = LElbow_fb_motion
-    LMA_vector['LElbow_fb_motion'] = RElbow_fb_motion
+    LMA_vector['RElbow_fb_motion'] = RElbow_fb_motion
 
-    ''' Add original pose keypoints '''
-    for key in LMA_vector:
-        if key != 'timestep_btwn_frame':
-            LMA_vector[key] = list(LMA_vector[key])
-    # LMA_vector = {key: list(LMA_vector[key]) for key in LMA_vector}
+    ''' Convert to list '''
+    LMA_vector = {key: list(LMA_vector[key]) for key in LMA_vector}
     return LMA_vector
 
 
@@ -191,6 +187,9 @@ joints_by_index = list(joints.keys())
 
 
 def LMA_action_db():
+    # if not os.path.isfile('../data/action_db/3dpb_keypoints.npz'):
+    #     data_utils.pose_baseline_to_h36m(path='../data/3d-pose-baseline', output_dir='../data/3d-pose-baseline')
+
     keypoints_3d = data_utils.load_3d_keypoints(keypoints_folder='../data/action_db')
 
     LMA_df = pd.DataFrame()
@@ -205,6 +204,9 @@ def LMA_action_db():
                     for i, kpts in enumerate(keypoints_3d[subject][action][emotion][intensity]):
                         print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
                         LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
+                        kpts = [np.array(frame) for frame in kpts]
+                        if subject == '19m' and float(intensity)==3.2:
+                            print('here')
                         LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timesteps[subject][action][emotion][intensity][i]))
                         LMA_df = LMA_df.append(LMA_features, ignore_index=True)
 
@@ -214,7 +216,7 @@ def LMA_action_db():
 
 def LMA_paco():
     print('Computing LMA feature vectors for PACO dataset...')
-    paco_emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
+    paco_emotions = ['ang', 'hap', 'neu', 'sad']
     keypoints_3d = data_utils.load_paco_keypoints(normalised=True)
 
     LMA_df = pd.DataFrame()
@@ -223,6 +225,8 @@ def LMA_paco():
     for subject in keypoints_3d:
         for action in keypoints_3d[subject]:
             for emotion in keypoints_3d[subject][action]:
+                if emotion == 'fea': # Ignore fear
+                    continue
                 for i, data in enumerate(keypoints_3d[subject][action][emotion]):
                     kpts = data['keypoints']
                     timestep = data['timestep']
@@ -241,4 +245,6 @@ def LMA_paco():
 
 
 if __name__ == '__main__':
-    LMA_paco()
+    # LMA_paco()
+    # Split into train, test
+    LMA_train, LMA_test = data_utils.get_train_test_set(folder='../data/paco')

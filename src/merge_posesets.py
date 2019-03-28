@@ -6,10 +6,12 @@ from sklearn import preprocessing
 
 
 def get_centers(dir, keep_by_emotion=False):
+    ''' keep_by_emotion = whether to keep separated by emotion '''
     print('Loading centers...')
     cluster_centers = []
     for emotion in emotions:
-        cluster_centers.append(np.load(dir+'/clusters_' + emotion + '.npz', encoding='latin1'))
+        centers_file = dir+'/clusters_' + emotion + '.npz'
+        cluster_centers.append(np.load(centers_file, encoding='latin1'))
     # cluster_centers = [np.load(dir+'/clusters_' + emotion + '.npz', encoding='latin1') for emotion in emotions if os.path.isfile(dir+'/clusters_' + emotion + '.npz')]
     cluster_centers = [clusters['predicted_centers'] for clusters in cluster_centers]
     # Flatten
@@ -77,19 +79,19 @@ def find_thresh(dir='../data/action_db/clusters'):
     for threshold in thresholds:
         merged = merge_centers(emotion_centers, threshold)
         dict_size.append(len(merged))
-    file_path = dir + '/merge_thresh_emp.txt'
+    file_path = dir + '/merge_thresh_exper.txt'
     with open(file_path, 'w') as file:
         file.write('thresh poseset_size\n')
         for i in range(len(thresholds)):
             file.write(str(thresholds[i]) + ' ' + str(dict_size[i]) + "\n")
 
-def merge_centers_paco():
+def merge_centers_paco(thresh=0, dir='../data/paco/clusters', fold=None):
     ''' Merge centers for paco '''
-    emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
-    emotions = ['ang', 'fea', 'hap','sad']
-    dir = '../data/paco/clusters'
+    if fold != None:
+        dir = '../data/paco/10_fold_cross_val/clusters/test_fold_' + str(fold)
+
     emotion_centers = get_centers(dir)
-    thresh = 0
+
     new_centers = merge_centers(emotion_centers, thresh=thresh)
     # get emotion category each merged center belongs to
     emotion_centers = get_centers(dir, keep_by_emotion=True)
@@ -138,11 +140,11 @@ def merge_centers_action_db():
 
 
 if __name__ == '__main__':
-    # emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
-    # merge_centers_action_db()
-    emotions = ['ang', 'fea', 'hap', 'sad']
+    emotions = ['ang', 'hap', 'neu', 'sad']
     # find_thresh(dir='../data/paco/clusters')
-    merge_centers_paco()
+    # emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
+
+    merge_centers_paco(thresh=450000000)
 
 
 

@@ -78,8 +78,8 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
         subject = str(int(name[:3])) + str(name[3])
         emotion = name[5:8]
         intensity = name[9:12]
-        if float(intensity) < 5:
-            continue
+        # if float(intensity) < 5:
+        #     continue
         action = 'walking'
 
         kpts = np.load(file, encoding='latin1')['positions_3d']
@@ -114,7 +114,7 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
     else:
         print('Generating timesteps...')
         timesteps = {}
-        openpose_dir = '../data/filtered_openpose/'
+        openpose_dir = '../data/action_db/filtered_openpose/'
 
         positions_3d = load_3d_keypoints('../data/')
         for subject in positions_3d:
@@ -159,14 +159,16 @@ def load_paco_keypoints(keypoints_folder='../data/paco', kpts_filename='paco_key
 
 def load_LMA(folder):
     if 'paco' in folder:
+        print('Loading Paco LMA Features...')
         df = pd.DataFrame()
-        paco_emotions = ['ang', 'fea', 'hap', 'neu', 'sad']
+        paco_emotions = ['ang', 'hap', 'neu', 'sad']
         for emotion in paco_emotions:
             df_emotion = pd.read_hdf(folder+'/LMA_features_' + emotion + '.h5')
             df = df.append(df_emotion)
 
         print('no rows: ' + str(len(df)))
         return df
+    print('Loading Action DB LMA Features...')
     return pd.read_hdf(folder + "/LMA_features.h5")
 
 
@@ -185,6 +187,7 @@ def get_train_test_set(folder='../data/action_db'):
         train = pd.read_hdf(folder + '/training/train_data.h5')
         test = pd.read_hdf(folder + '/test/test_data.h5')
     return train, test
+
 
 
 def convert_to_list(s):
