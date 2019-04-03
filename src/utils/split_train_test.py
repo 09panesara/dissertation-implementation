@@ -165,19 +165,22 @@ def cross_val(df, n=10):
     X = df.drop(drop_classes, axis=1)
     X = np.array(X)
     # stratified 10 fold cross val
-    skf = StratifiedKFold(n_splits=n)
-    # skf.get_n_splits(X, y)
-    split = skf.split(X,y)
-    df_w_folds = df
+    skf = StratifiedKFold(n_splits=n, shuffle=True)
+    skf.get_n_splits(X, y)
+    print(skf)
+    df_w_folds = df.copy()
     df_w_folds['fold'] = 0
     i = 0
-    for train_indices, test_indices in split:
-        df_w_folds.iloc[train_indices, df_w_folds.columns.get_loc('fold')] = i
+    for train_indices, test_indices in skf.split(X,y):
+        print('Fold ' + str(i))
+        print(train_indices)
+        print(test_indices)
+        df_w_folds.iloc[test_indices, df_w_folds.columns.get_loc('fold')] = i
         i += 1
 
-    print(set(df_w_folds['fold']))
+        print(set(df_w_folds['fold']))
 
-    df_w_folds.to_hdf('../data/paco/10_fold_cross_val/LMA_features_crossfold.h5', key='df', mode='w')
+    df_w_folds.to_hdf('../data/paco/10_fold_cross_val/LMA_features_cross_val.h5', key='df', mode='w')
 
     print('Saving...Done.')
     return folds

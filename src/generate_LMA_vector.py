@@ -190,7 +190,7 @@ def LMA_action_db():
     # if not os.path.isfile('../data/action_db/3dpb_keypoints.npz'):
     #     data_utils.pose_baseline_to_h36m(path='../data/3d-pose-baseline', output_dir='../data/3d-pose-baseline')
 
-    keypoints_3d = data_utils.load_3d_keypoints(keypoints_folder='../data/action_db')
+    keypoints_3d = data_utils.load_action_db_keypoints(keypoints_folder='../data/action_db')
 
     LMA_df = pd.DataFrame()
     # TODO: update with LMA feature names
@@ -245,6 +245,4 @@ def LMA_paco():
 
 
 if __name__ == '__main__':
-    # LMA_paco()
-    # Split into train, test
-    LMA_train, LMA_test = data_utils.get_train_test_set(folder='../data/paco')
+    LMA_action_db()
