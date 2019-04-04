@@ -190,10 +190,9 @@ def LMA_action_db():
     # if not os.path.isfile('../data/action_db/3dpb_keypoints.npz'):
     #     data_utils.pose_baseline_to_h36m(path='../data/3d-pose-baseline', output_dir='../data/3d-pose-baseline')
 
-    keypoints_3d = data_utils.load_action_db_keypoints(keypoints_folder='../data/action_db')
+    keypoints_3d = data_utils.load_action_db_keypoints(keypoints_folder='../data/action_db', normalised=True)
 
     LMA_df = pd.DataFrame()
-    # TODO: update with LMA feature names
     timesteps = data_utils.get_timestep(timesteps_path='../data/action_db/timesteps.npz',
                                         videos_dir='../VideoPose3D/videos/walking_videos')  # float
 
@@ -201,12 +200,11 @@ def LMA_action_db():
         for action in keypoints_3d[subject]:
             for emotion in keypoints_3d[subject][action]:
                 for intensity in keypoints_3d[subject][action][emotion]:
-                    for i, kpts in enumerate(keypoints_3d[subject][action][emotion][intensity]):
+                    for i, data in enumerate(keypoints_3d[subject][action][emotion][intensity]):
                         print('Subject: %s, action: %s, emotion: %s, intensity: %s' %(subject, action, emotion, intensity))
+                        kpts = data['keypoints']
                         LMA_features = {'subject': subject, 'action': action, 'emotion': emotion, 'intensity': intensity}
                         kpts = [np.array(frame) for frame in kpts]
-                        if subject == '19m' and float(intensity)==3.2:
-                            print('here')
                         LMA_features.update(generate_LMA_features(kpts, timestep_between_frame=timesteps[subject][action][emotion][intensity][i]))
                         LMA_df = LMA_df.append(LMA_features, ignore_index=True)
 
@@ -245,4 +243,5 @@ def LMA_paco():
 
 
 if __name__ == '__main__':
-    LMA_action_db()
+    # LMA_action_db()
+    data_utils.get_train_test_set('../data/action_db')

@@ -52,19 +52,23 @@ def join_3d_keypoints(keypoints_folder, output_dir='../../data'):
     print('Done.')
 
 
-def load_action_db_keypoints(keypoints_folder='../data/action_db', kpts_filename = '3dpb_keypoints.npz'):
+
+def load_action_db_keypoints(keypoints_folder='../data/action_db', kpts_filename = '3dpb_keypoints.npz', normalised=False):
     ''' Loads 3d-pose-baseline keypoints  '''
     print('Loading Actions DB 3d keypoints...')
     assert(os.path.isdir(keypoints_folder))
-    print(os.listdir(keypoints_folder))
     if not os.path.isfile(keypoints_folder + '/' + kpts_filename):
         print('3D keypoints file not found')
         return pose_baseline_to_h36m('../data/action_db/3d-pose-baseline')
     else:
-        return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
+        if normalised:
+            return np.load(keypoints_folder + '/' + 'normalised_keypoints.npz', encoding='latin1')['positions_3d'].item()
+        else:
+            return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
 
 
-def pose_baseline_to_h36m(path, output_dir='../data'):
+
+def pose_baseline_to_h36m(path, output_dir='../data/action_db'):
     '''
     Converts 3d-pose-baseline keypoints into H36M keypoints, aggregates into one file <output_dir>/3dpb-keypoints.npz
     :param path:
@@ -80,7 +84,7 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
         subject = str(int(name[:3])) + str(name[3])
         emotion = name[5:8]
         intensity = name[9:12]
-        if float(intensity) < 5 or (emotion == 'neu' and float(intensity) >= 3.0):
+        if (float(intensity) < 5 and emotion != 'neu') or (emotion == 'neu' and float(intensity) < 3.0):
             continue
         action = 'walking'
 
@@ -108,7 +112,7 @@ def pose_baseline_to_h36m(path, output_dir='../data'):
 
 
 
-def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_videos'):
+def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_videos', keypoints_dir='../data/action_db'):
     # loads timesteps for actions database videos
     if os.path.isfile(timesteps_path):
         print('Loading timesteps...')
@@ -116,9 +120,9 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
     else:
         print('Generating timesteps...')
         timesteps = {}
-        openpose_dir = '../data/action_db/3d-pose-baseline/'
+        openpose_dir = '../3d-pose-baseline/walking_openpose/'
 
-        positions_3d = load_action_db_keypoints('../data/action_db')
+        positions_3d = load_action_db_keypoints(keypoints_dir)
         for subject in positions_3d:
             for action in positions_3d[subject]:
                 for emotion in positions_3d[subject][action]:
