@@ -287,12 +287,12 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     frame_joints[joints_y['Hip']] = (frame_joints[joints_y['LHip']] +  frame_joints[joints_y['RHip']]) / 2
                     frame_joints[joints_z['Hip']] = (frame_joints[joints_z['LHip']] +  frame_joints[joints_z['RHip']]) / 2
 
-                    frame_joints[joints_x['LKnee']] = (x['LFWT'] + x['LBWT']) / 2
-                    frame_joints[joints_y['LKnee']] = (y['LFWT'] + y['LBWT']) / 2
-                    frame_joints[joints_z['LKnee']] = (z['LFWT'] + z['LBWT']) / 2
-                    frame_joints[joints_x['RKnee']] = (x['RFWT'] + x['RBWT']) / 2
-                    frame_joints[joints_y['RKnee']] = (y['RFWT'] + y['RBWT']) / 2
-                    frame_joints[joints_z['RKnee']] = (z['RFWT'] + z['RBWT']) / 2
+                    # frame_joints[joints_x['LKnee']] = (x['LKNE'] + x['LBWT']) / 2
+                    # frame_joints[joints_y['LKnee']] = (y['LKNE'] + y['LBWT']) / 2
+                    # frame_joints[joints_z['LKnee']] = (z['LKNE'] + z['LBWT']) / 2
+                    # frame_joints[joints_x['RKnee']] = (x['RFWT'] + x['RBWT']) / 2
+                    # frame_joints[joints_y['RKnee']] = (y['RFWT'] + y['RBWT']) / 2
+                    # frame_joints[joints_z['RKnee']] = (z['RFWT'] + z['RBWT']) / 2
 
                     frame_joints[joints_x['LFoot']] = x['LHEL']
                     frame_joints[joints_y['LFoot']] = y['LHEL']
@@ -330,6 +330,13 @@ def process_CSM(dir, output_dir='../../data/paco'):
                         frame_joints[joints_y['RWrist']] = (y['RWristThumb'] + y['RWristPinky']) / 2
                         frame_joints[joints_z['RWrist']] = (z['RWristThumb'] + z['RWristPinky']) / 2
 
+                        frame_joints[joints_x['LKnee']] = x['LOuterKnee']
+                        frame_joints[joints_y['LKnee']] = y['LOuterKnee']
+                        frame_joints[joints_z['LKnee']] = z['LOuterKnee']
+                        frame_joints[joints_x['RKnee']] = x['ROuterKnee']
+                        frame_joints[joints_y['RKnee']] = y['ROuterKnee']
+                        frame_joints[joints_z['RKnee']] = z['ROuterKnee']
+
                     else:
                         frame_joints[joints_x['Neck/Nose']] = (x['C7'] + x['CLAV']) / 2
                         frame_joints[joints_y['Neck/Nose']] = (y['C7'] + y['CLAV']) / 2
@@ -341,6 +348,14 @@ def process_CSM(dir, output_dir='../../data/paco'):
                         frame_joints[joints_x['RWrist']] = (x['RWRA'] + x['RWRB']) / 2
                         frame_joints[joints_y['RWrist']] = (y['RWRA'] + y['RWRB']) / 2
                         frame_joints[joints_z['RWrist']] = (z['RWRA'] + z['RWRB']) / 2
+
+                        frame_joints[joints_x['LKnee']] = x['LKNE']
+                        frame_joints[joints_y['LKnee']] = y['LKNE']
+                        frame_joints[joints_z['LKnee']] = z['LKNE']
+                        frame_joints[joints_x['RKnee']] = x['RKNE']
+                        frame_joints[joints_y['RKnee']] = y['RKNE']
+                        frame_joints[joints_z['RKnee']] = z['RKNE']
+
 
                     frame_joints[joints_x['LShoulder']] = x['LSHO']
                     frame_joints[joints_y['LShoulder']] = y['LSHO']

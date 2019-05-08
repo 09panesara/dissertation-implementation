@@ -82,6 +82,9 @@ def normalise_space(keypoints):
     thetas = [math.atan(frame[joints['LHip']][1] - frame[joints['RHip']][1]) /
               (frame[joints['LHip']][0] - frame[joints['RHip']][0]) for frame in keypoints]
     rotation_mat = [[[math.cos(theta), -1 * math.sin(theta)], [math.sin(theta), math.cos(theta)]] for theta in thetas]
+    print('5 == 4?')
+    print(keypoints[10])
+    print(keypoints[10])
     normalised_kpts = [
         [[np.dot(rotation_mat[i][1], [joint[1], joint[0]]), np.dot(rotation_mat[i][0], [joint[1], joint[0]]), joint[2]]
          for joint in frame] for i, frame in enumerate(normalised_kpts)]
@@ -91,7 +94,8 @@ def normalise_space(keypoints):
 no_joints = 17
 avg_limb_length = np.zeros((no_joints, no_joints))  # matrix
 joint_hierarchy = {0: [4, 7, 1], 4: [5], 7: [8], 1: [2], 5: [6], 2: [3], 8: [9, 11, 14], 9: [10], 11: [12], 12: [13], 14: [15], 15: [16]}
-get_parent = {j: i for i, children in joint_hierarchy for j in children}
+get_parent = {j: i for i in joint_hierarchy for j in joint_hierarchy[i]}
+print(get_parent)
 order = [0, 4, 7, 1, 5, 8, 2, 6, 3, 9, 11, 14, 10, 12, 13, 15, 16]
 no_limbs = 16
 
@@ -108,17 +112,20 @@ def calc_avg_limb_lengths(seq_kpts):
     '''
 
     def _calc_limb_lengths(frame):
-        limb_lengths = np.zeros((no_limbs, no_limbs))
-        for p in order:
-            for c in joint_hierarchy[p]:
-                if p in joint_hierarchy:
-                    limb_lengths[p][c] = dist_btwn_vectors(frame[p], frame[c])
+        limb_lengths = np.zeros((no_joints, no_joints))
+        for p in range(no_joints):
+            if p in joint_hierarchy:
+                for c in joint_hierarchy[p]:
+                        dist = dist_btwn_vectors(frame[p], frame[c])
+                        limb_lengths[p][c] = dist
+                        limb_lengths[c][p] = dist
+
         return limb_lengths
 
 
-    l = np.zeros((no_limbs, no_limbs)) # average limb lengths
+    l = np.zeros((no_joints, no_joints)) # average limb lengths
     for seq in seq_kpts:
-        seq_l = np.zeros((no_limbs, no_limbs))
+        seq_l = np.zeros((no_joints, no_joints))
         for frame in seq:
             limb_lengths = _calc_limb_lengths(frame)
             seq_l = np.add(seq_l, limb_lengths)
@@ -137,20 +144,27 @@ def normalise_by_size(kpts, avg_limb_lengths):
     kpts = kpts for one vid sequence
     Assumed normalised by space already
     '''
-
-    normalised_kpts = np.array(kpts.shape)
+    normalised_kpts = []
     for frame in kpts:
         # assert position of hips = (0,0,0)?
         new_frame = [[] for i in range(no_joints)]
         new_frame[0] = frame[0]
-        for joint in order[1:]: # NEED TO UPDATE ORDER TO GO PARENTS FIRST
-            parent = frame[get_parent[joint]]
-            alpha = avg_limb_lengths[parent[joint],joint] / dist_btwn_vectors(parent, frame[joint]) # joint = child
-            x = parent[0] + alpha * (joint[0] - parent[0])
-            y = parent[1] + alpha * (joint[1] - parent[1])
-            z = parent[2] + alpha * (joint[2] - parent[2])
-            new_frame[joint] = np.array([x,y,z]) # ENSURE SAME FORMAT OF NP ARRAYS IS KEPT
-        normalised_kpts.append(np.array(new_frame))
+        for joint_index in order[1:]: # order 0 = hip = doesn't need scaling as center
+            parent_joint = frame[get_parent[joint_index]]
+            alpha = avg_limb_lengths[get_parent[joint_index]][joint_index]
+            alpha = alpha / dist_btwn_vectors(parent_joint, frame[joint_index]) # frame[joint_index] = child
+            x = parent_joint[0] + alpha * (frame[joint_index][0] - parent_joint[0])
+            if str(x) == 'nan':
+                print(joint_index)
+                print(get_parent[joint_index])
+                return
+            y = parent_joint[1] + alpha * (frame[joint_index][1] - parent_joint[1])
+            z = parent_joint[2] + alpha * (frame[joint_index][2] - parent_joint[2])
+            new_frame[joint_index] = [x,y,z] # ENSURE SAME FORMAT OF NP ARRAYS IS KEPT
+        assert len(new_frame) == 17
+        normalised_kpts.append(new_frame)
+    normalised_kpts = np.array(normalised_kpts)
+    return normalised_kpts
 
 
 
@@ -207,9 +221,9 @@ def smooth_keypoints(redo_normalisation=False, paco=False):
         normalised_keypoints = data_utils.load_paco_keypoints(normalised=True) if paco else data_utils.load_action_db_keypoints(normalised=True)
 
     ''' Normalise by size '''
-    if not os.path.isfile(normalised_by_size_path):
+    if not os.path.isfile(normalised_by_size_path) or redo_normalisation:
         normalised_by_size = {}
-        all_kpts = np.array([])
+        all_kpts = []
         # get all keypoints
         for subject in normalised_keypoints:
             if subject not in normalised_by_size:
@@ -264,9 +278,9 @@ def smooth_keypoints(redo_normalisation=False, paco=False):
                                     print('Normalising vid ' + str(i) + ' for subject: ' + subject + ', emotion: ' + emotion + ', intensity: ' + intensity + ' by size.')
                                     kpts = normalise_by_size(data, avg_limb_length)
                                     normalised_by_size[subject][action][emotion][intensity].append({'keypoints': kpts})
-        print('Saving...')
-        np.savez_compressed(normalised_by_size_path, positions_3d=normalised_by_size)
-        print('Done.')
+        # print('Saving...')
+        # np.savez_compressed(normalised_by_size_path, positions_3d=normalised_by_size)
+        # print('Done.')
 
 
 
