@@ -76,8 +76,10 @@ def split(df, train_size=60, val_size=20, test_size=20):
     test_df.to_hdf('../data/test/test_data.h5', key='df', mode='w')
 
 
-def split_train_test(df, train_size=80, test_size=20, folder='../data/action_db'):
+def split_train_test(df, train_size=70, test_size=30, folder='../data/action_db'):
+    print('Splitting into train-test: ' + str(train_size) + '-' + str(test_size))
     def _convert_index_to_subj_emotion(y):
+        print(y)
         y = [subjects[y[0]-1], EMOTIONS[y[1]]]
         return y
 
@@ -85,6 +87,7 @@ def split_train_test(df, train_size=80, test_size=20, folder='../data/action_db'
         EMOTIONS = ['ang', 'fea', 'hap', 'neu', 'sad', 'unt']
         subjects = ['1m', '2f', '3m', '4f', '5m', '6f', '7f', '8m', '9f', '10f', '11f', '12m', '13f', '14f', '15m', '16f',
                     '17f', '18f', '19m', '20f', '21m', '22f', '23f', '24f', '25m', '26f', '27m', '28f', '29f']
+        subjects = ['0'*(4-len(subject)) + subject for subject in subjects]
     else:
         # emotions = ['ang', 'fea', 'hap', 'sad', 'neu']
         EMOTIONS = ['ang', 'hap', 'sad', 'neu']
@@ -156,7 +159,7 @@ def stratified_split(X, y, folds=5):
     return folds, classes
 
 
-def cross_val(df, n=10):
+def cross_val(df, cross_val_folder, n=10):
     print('Spliting into 10 folds...')
     df = df.reindex(np.random.permutation(df.index))
     drop_classes = ['subject', 'emotion']
@@ -180,10 +183,10 @@ def cross_val(df, n=10):
 
         print(set(df_w_folds['fold']))
 
-    df_w_folds.to_hdf('../data/paco/10_fold_cross_val/LMA_features_cross_val.h5', key='df', mode='w')
+    df_w_folds.to_hdf(cross_val_folder + '/LMA_features_cross_val.h5', key='df', mode='w')
 
     print('Saving...Done.')
-    return folds
+    return df_w_folds
 
 
 

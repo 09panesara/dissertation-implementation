@@ -1,4 +1,4 @@
-from kMedians import kmedians
+from kmedians import kmedians
 import numpy as np
 from utils import data_utils
 import pandas as pd
@@ -35,7 +35,7 @@ joints = [
     'RWrist'
 ]
 
-def flatten_by_frame(df, paco=False):
+def flatten_by_frame(df, csv=False):
     '''
     :param df: dataframe for particular emotion, containing one row per video
     :return: Flattened dataframe containing 1 row per frame
@@ -52,7 +52,7 @@ def flatten_by_frame(df, paco=False):
 
     for i, row in df.iterrows():
         arr = np.array(row)
-        if paco:
+        if csv:
             arr = [convert_to_list(r) for r in arr]
         arr = list(zip(*arr))
         arr = [np.array(row) for row in arr]
@@ -209,7 +209,7 @@ def generate_lexicon2(emotion, train, override_existing_clusters=False, visualis
         _visualise_clusters(clusters=predicted_clusters, plot_name='kmedians_' + emotion + '.png', paco=True)
 
 
-PACO = True
+PACO = False
 if PACO:
     emotions = ['ang', 'hap', 'sad', 'neu']
 else:
@@ -221,22 +221,24 @@ else:
 
 no_folds = 10
 
-for i in range(no_folds):
-    # df_path = '../data/paco/training/train_' + emotion + '.h5'
-    df_path = '../data/paco/10_fold_cross_val/LMA_features_test_fold_' + str(i) + '.csv'
-    LMA_train = pd.read_csv(df_path).iloc[:, 1:]
-    for emotion in emotions:
-        print('Finding clusters for emotion ' + emotion)
-        df = LMA_train.loc[LMA_train['emotion'] == emotion]
-        df = flatten_by_frame(df, paco=True)
-        # Write pandas dataframe to compressed h5.py file
-        # df.to_hdf(df_path, key='df', mode='w')
-
-        df_arr = np.array(df)
-        print(df_arr)
-        # _visualise_data(df_arr, plot_name='data.png', paco=True)
-    #     generate_lexicon(emotion, df_arr)
-    #     generate_lexicon2(emotion, df_arr, override_existing_clusters=True)
+# for i in range(no_folds):
+#     # df_path = '../data/paco/training/train_' + emotion + '.h5'
+#     if PACO:
+#         df_path = '../data/paco/10_fold_cross_val/LMA_features_test_fold_' + str(i) + '.csv'
+#     else:
+#         df_path = '../data/action_db/10_fold_cross_val/LMA_features_test_fold_' + str(i) + '.csv'
+#     LMA_train = pd.read_csv(df_path).iloc[:, 1:]
+#     for emotion in emotions:
+#         print('Finding clusters for emotion ' + emotion)
+#         df = LMA_train.loc[LMA_train['emotion'] == emotion]
+#         df = flatten_by_frame(df, paco=True)
+#         # Write pandas dataframe to compressed h5.py file
+#         # df.to_hdf(df_path, key='df', mode='w')
+#
+#         df_arr = np.array(df)
+#         print(df_arr)
+#         # _visualise_data(df_arr, plot_name='data.png', paco=True)
+#     #     generate_lexicon(emotion, df_arr)
 
 
 # ''' Merge centers '''
@@ -251,9 +253,34 @@ for i in range(no_folds):
 
 
 
+# kpts = np.load('../data/action_db/3dpb_keypoints.npz', encoding='latin1')['positions_3d'].item()
+# X = []
+# for subject in kpts:
+#     for emotion in kpts[subject]['walking']:
+#         for intensity in kpts[subject]['walking'][emotion]:
+#             for data in kpts[subject]['walking'][emotion][intensity]:
+#                 for frame in data:
+#                     flattened_frame = [i for f in frame for i in f]
+#                     X.append(flattened_frame)
+LMA_features = pd.read_hdf('../data/action_db/LMA_features.h5')
+for emotion in emotions:
+    df = LMA_features.loc[LMA_features['emotion']==emotion]
+    X = flatten_by_frame(df, csv=False)
+    print(len(X))
+    pca = PCA(n_components=2).fit(X)
+    pca_2d = pca.transform(X)
+    principalDf = pd.DataFrame(data=pca_2d
+                               , columns=['principal component 1', 'principal component 2'])
 
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.set_xlabel('Principal Component 1', fontsize=15)
+    ax.set_ylabel('Principal Component 2', fontsize=15)
+    ax.set_title('2 component PCA', fontsize=20)
 
+    ax.scatter(principalDf.loc[:, 'principal component 1'], principalDf.loc[:, 'principal component 2'])
 
+    plt.show()
 
 
 

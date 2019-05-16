@@ -4,7 +4,7 @@ import os
 import glob
 import re
 import shutil
-from utils.split_train_test import split_train_test
+from utils.split_train_test import split_train_test, cross_val
 from moviepy.editor import VideoFileClip
 import ast
 
@@ -53,17 +53,19 @@ def join_3d_keypoints(keypoints_folder, output_dir='../../data'):
 
 
 
-def load_action_db_keypoints(keypoints_folder='../data/action_db', kpts_filename = '3dpb_keypoints.npz', normalised=False):
+def load_action_db_keypoints(keypoints_folder='../data/action_db', kpts_filename = 'hmr_3d_keypoints.npz', normalised=False):
     ''' Loads 3d-pose-baseline keypoints  '''
-    print('Loading Actions DB 3d keypoints...')
+
     assert(os.path.isdir(keypoints_folder))
     if not os.path.isfile(keypoints_folder + '/' + kpts_filename):
         print('3D keypoints file not found')
         return pose_baseline_to_h36m('../data/action_db/3d-pose-baseline')
     else:
         if normalised:
+            print('Loading Actions DB hmr 3d normalised keypoints...')
             return np.load(keypoints_folder + '/' + 'normalised_keypoints.npz', encoding='latin1')['positions_3d'].item()
         else:
+            print('Loading Actions DB hmr 3d keypoints...')
             return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
 
 
@@ -112,7 +114,7 @@ def pose_baseline_to_h36m(path, output_dir='../data/action_db'):
 
 
 
-def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_videos', keypoints_dir='../data/action_db'):
+def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_videos', keypoints_dir='../data/action_db', normalised=True):
     # loads timesteps for actions database videos
     if os.path.isfile(timesteps_path):
         print('Loading timesteps...')
@@ -122,7 +124,7 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
         timesteps = {}
         openpose_dir = '../3d-pose-baseline/walking_openpose/'
 
-        positions_3d = load_action_db_keypoints(keypoints_dir)
+        positions_3d = load_action_db_keypoints(keypoints_dir, normalised=normalised)
         for subject in positions_3d:
             for action in positions_3d[subject]:
                 for emotion in positions_3d[subject][action]:
@@ -155,12 +157,16 @@ def get_timestep(timesteps_path, videos_dir='../VideoPose3D/videos/walking_video
         return timesteps
 
 
-def load_paco_keypoints(keypoints_folder='../data/paco', kpts_filename='paco_keypoints.npz', normalised=False):
-    print('Loading paco 3d keypoints...')
-    if normalised:
-        return np.load(keypoints_folder + '/normalised_keypoints.npz', encoding='latin1')['positions_3d'].item()
-    else:
+def load_paco_keypoints(keypoints_folder='../data/paco', kpts_filename='paco_keypoints.npz', normalised_by=None):
+    if not normalised_by:
+        print('Loading unnormalised paco 3d keypoints...')
         return np.load(keypoints_folder + '/' + kpts_filename, encoding='latin1')['positions_3d'].item()
+    elif normalised_by =='space':
+        print('Loading paco kpts normalised by space...')
+        return np.load(keypoints_folder + '/normalised_keypoints.npz', encoding='latin1')['positions_3d'].item()
+    elif normalised_by =='size':
+        print('Loading paco kpts normalised by size...')
+        return np.load(keypoints_folder + '/normalised_by_size_kpts.npz', encoding='latin1')['positions_3d'].item()
 
 
 def load_LMA(folder):
@@ -194,6 +200,19 @@ def get_train_test_set(folder='../data/action_db'):
         test = pd.read_hdf(folder + '/test/test_data.h5')
     return train, test
 
+
+def get_cross_val(cross_val_dir='../data/paco/10_fold_cross_val'):
+    if not os.path.isfile(cross_val_dir+'/LMA_features_cross_val.h5'):
+        print('Performing 10 cross fold split from LMA features')
+        if 'paco' in cross_val_dir:
+            LMA_features = load_LMA('../data/paco')
+        else:
+            LMA_features = load_LMA('../data/action_db')
+        df = cross_val(LMA_features, cross_val_dir)
+    else:
+        print('Getting 10 cross fold split')
+        df = pd.read_csv(cross_val_dir+'/LMA_features_cross_val.csv').iloc[:,1:]
+    return df
 
 
 def convert_to_list(s):

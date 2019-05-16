@@ -1,7 +1,7 @@
 import pytest
 from sklearn.datasets import make_blobs
 import numpy as np
-from src.kMedians import kmedians
+from src.kmedians import kmedians
 from scipy.spatial.distance import euclidean
 from itertools import combinations
 

@@ -4,7 +4,6 @@ import pandas as pd
 from src.utils.split_train_test import stratified_split, split_train_test
 from skmultilearn.model_selection import iterative_train_test_split
 
-@pytest.mark.skip(reason="Speedup tests by ignoring")
 def test_stratified_split():
     np.random.seed(1)
 
@@ -22,7 +21,6 @@ def test_stratified_split():
 
     ''' TODO: go through each class, check that difference between number of rows per emotion between folds is <= 1, same for subject '''
 
-@pytest.mark.skip(reason="Speedup tests by ignoring")
 def test_stratified_split():
     y = np.array([[0, 1], [0, 3], [1, 3], [4, 5], [4, 3], [4, 4], [4, 4]])
     X = np.array([[i, i + 1] for i in range(len(y))])

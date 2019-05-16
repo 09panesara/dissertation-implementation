@@ -21,8 +21,9 @@ def perform_cv(paco, cross_val_dir, models_folder, override_merged_centers=False
     # initialise dataframes for recognition rate at position 1, recognition rate at pos 2
     df_correct_1_sum = pd.DataFrame(np.zeros((len(emotions), len(emotions))), index=emotions, columns=emotions)
     df_correct_cum_sum = pd.DataFrame(np.zeros((len(emotions), len(emotions))), index=emotions, columns=emotions)
-    df = pd.read_hdf(cross_val_dir + '/LMA_features_cross_val.h5')
-    for f in range(10):
+    df = data_utils.get_cross_val(cross_val_dir='../data/paco/10_fold_cross_val')
+    # df = pd.read_hdf(cross_val_dir + '/LMA_features_cross_val.h5')
+    for f in range(3,4):
         fold = str(f)
         fold__dir = cross_val_dir + '/fold' + fold
         clusters_dir = fold__dir + '/clusters'
@@ -43,8 +44,8 @@ def perform_cv(paco, cross_val_dir, models_folder, override_merged_centers=False
         df_correct_1, df_correct_cum = hmmModel._read_results()
         df_correct_1_sum = df_correct_1_sum.add(df_correct_1, fill_value=0)
         df_correct_cum_sum = df_correct_cum_sum.add(df_correct_cum, fill_value=0)
-        # os.system('say "Confusion matrix for fold"')
-        # confusion_mat(df_1=df_correct_1, df_cum=df_correct_cum, show_plot=True)
+        os.system('say "Confusion matrix for fold"')
+        confusion_mat(df_1=df_correct_1, df_cum=df_correct_cum, show_plot=True)
 
     return df_correct_1_sum, df_correct_cum_sum
 
@@ -68,7 +69,7 @@ def plot_results(paco, models_folder):
             df_correct_1, df_correct_cum = _read_model_results(models_folder + "/" + file, emotions)
             df_correct_1_sum = df_correct_1_sum.add(df_correct_1, fill_value=0)
             df_correct_cum_sum = df_correct_cum_sum.add(df_correct_cum, fill_value=0)
-
+    print(i)
     assert i == no_folds
     # calc average for 10 folds
     # df_correct_1_avg = df_correct_1_sum.divide(no_folds)
@@ -83,14 +84,11 @@ def plot_results(paco, models_folder):
 
 
 if __name__ == '__main__':
-    # df_correct_1_sum, df_correct_cum_sum = perform_cv(paco=True, cross_val_dir='../data/paco/10_fold_cross_val',
-    #                                                   models_folder='../models/paco/output/10_fold_cross_val',
-    #                                                     override_merged_centers=False, merged_centers_thresh=300000000)
+    df_correct_1_sum, df_correct_cum_sum = perform_cv(paco=True, cross_val_dir='../data/paco/10_fold_cross_val', models_folder='../models/paco/output/10_fold_cross_val', override_merged_centers=False, merged_centers_thresh=0)
     plot_results(paco=True, models_folder='../models/paco/output/10_fold_cross_val')
-
-
-
-
+    # for i in range(10):
+    #     df_correct_1, df_correct_cum = _read_model_results('../models/paco/output/10_fold_cross_val/n_b_size thresh=0_5/model_output_' + str(i) + '.npz', emotions = ['ang', 'hap', 'neu', 'sad'])
+    #     confusion_mat(df_1=df_correct_1, df_cum=df_correct_cum, show_plot=True)
 
 
 

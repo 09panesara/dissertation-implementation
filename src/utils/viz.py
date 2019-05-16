@@ -109,4 +109,3 @@ def show2Dpose(channels, ax, lcolor="#3498db", rcolor="#e74c3c", add_labels=Fals
 
   ax.set_aspect('equal')
 
-# if __name__ == '__main__':

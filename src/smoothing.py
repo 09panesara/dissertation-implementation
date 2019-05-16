@@ -82,9 +82,6 @@ def normalise_space(keypoints):
     thetas = [math.atan(frame[joints['LHip']][1] - frame[joints['RHip']][1]) /
               (frame[joints['LHip']][0] - frame[joints['RHip']][0]) for frame in keypoints]
     rotation_mat = [[[math.cos(theta), -1 * math.sin(theta)], [math.sin(theta), math.cos(theta)]] for theta in thetas]
-    print('5 == 4?')
-    print(keypoints[10])
-    print(keypoints[10])
     normalised_kpts = [
         [[np.dot(rotation_mat[i][1], [joint[1], joint[0]]), np.dot(rotation_mat[i][0], [joint[1], joint[0]]), joint[2]]
          for joint in frame] for i, frame in enumerate(normalised_kpts)]
@@ -95,7 +92,6 @@ no_joints = 17
 avg_limb_length = np.zeros((no_joints, no_joints))  # matrix
 joint_hierarchy = {0: [4, 7, 1], 4: [5], 7: [8], 1: [2], 5: [6], 2: [3], 8: [9, 11, 14], 9: [10], 11: [12], 12: [13], 14: [15], 15: [16]}
 get_parent = {j: i for i in joint_hierarchy for j in joint_hierarchy[i]}
-print(get_parent)
 order = [0, 4, 7, 1, 5, 8, 2, 6, 3, 9, 11, 14, 10, 12, 13, 15, 16]
 no_limbs = 16
 
@@ -154,10 +150,6 @@ def normalise_by_size(kpts, avg_limb_lengths):
             alpha = avg_limb_lengths[get_parent[joint_index]][joint_index]
             alpha = alpha / dist_btwn_vectors(parent_joint, frame[joint_index]) # frame[joint_index] = child
             x = parent_joint[0] + alpha * (frame[joint_index][0] - parent_joint[0])
-            if str(x) == 'nan':
-                print(joint_index)
-                print(get_parent[joint_index])
-                return
             y = parent_joint[1] + alpha * (frame[joint_index][1] - parent_joint[1])
             z = parent_joint[2] + alpha * (frame[joint_index][2] - parent_joint[2])
             new_frame[joint_index] = [x,y,z] # ENSURE SAME FORMAT OF NP ARRAYS IS KEPT
@@ -181,8 +173,8 @@ def smooth_keypoints(redo_normalisation=False, paco=False):
         normalised_by_size_path = '../data/action_db/normalised_by_size_kpts.npz'
 
     if not os.path.isfile(normalised_keypoints_path) or redo_normalisation:
-        print('Normalising keypoints...')
-        keypoints_3d = data_utils.load_paco_keypoints(normalised=False) if paco else data_utils.load_action_db_keypoints(normalised=False)
+        print('Normalising keypoints by space...')
+        keypoints_3d = data_utils.load_paco_keypoints(normalised_by=None) if paco else data_utils.load_action_db_keypoints(normalised=False)
         normalised_keypoints = {}
 
         for subject in keypoints_3d:
@@ -222,6 +214,7 @@ def smooth_keypoints(redo_normalisation=False, paco=False):
 
     ''' Normalise by size '''
     if not os.path.isfile(normalised_by_size_path) or redo_normalisation:
+        print('Normalising by subject...')
         normalised_by_size = {}
         all_kpts = []
         # get all keypoints
@@ -278,13 +271,13 @@ def smooth_keypoints(redo_normalisation=False, paco=False):
                                     print('Normalising vid ' + str(i) + ' for subject: ' + subject + ', emotion: ' + emotion + ', intensity: ' + intensity + ' by size.')
                                     kpts = normalise_by_size(data, avg_limb_length)
                                     normalised_by_size[subject][action][emotion][intensity].append({'keypoints': kpts})
-        # print('Saving...')
-        # np.savez_compressed(normalised_by_size_path, positions_3d=normalised_by_size)
-        # print('Done.')
+        print('Saving...')
+        np.savez_compressed(normalised_by_size_path, positions_3d=normalised_by_size)
+        print('Done.')
 
 
 
 
 
 if __name__ == '__main__':
-    smooth_keypoints(redo_normalisation=True, paco=True)
+    smooth_keypoints(redo_normalisation=False, paco=True)

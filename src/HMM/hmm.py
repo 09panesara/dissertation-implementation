@@ -14,7 +14,7 @@ from utils.plot_results import _read_model_results, confusion_mat
 
 class HMM:
     def __init__(self, paco, train, test, train_soft_assign_path, test_soft_assign_path,
-                 rmv_emotions=[], model_results_path='../models/paco/model_results.npz'):
+                 rmv_emotions=[], model_results_path='../models/paco/model_results.npz', csv=True):
         '''
         :param paco: boolean for whether dataset is paco or not (if not, is action_db)
         :param train: dataframe for train dataset
@@ -37,6 +37,7 @@ class HMM:
         self.train_soft_assign_path = train_soft_assign_path
         self.test_soft_assign_path = test_soft_assign_path
         self.model_results_path = model_results_path
+        self.csv = csv
 
 
 
@@ -66,7 +67,7 @@ class HMM:
                 timestep = [timestep for i in range(no_frames)]
                 row['timestep_btwn_frame'] = timestep
             arr = np.array(row)
-            if self.paco:
+            if self.csv:
                 arr = [_convert_to_list(r) for r in arr]
             arr = list(zip(*arr))
             arr = [np.array(row) for row in arr]
@@ -183,11 +184,11 @@ class HMM:
         self.hmm_inference(models, test_X, test_y)
 
     def _gen_model(self, data, emotion):
-        print('here2')
-        model = pmg.HiddenMarkovModel.from_samples(pmg.NormalDistribution, n_components=self.n_components, X=data, algorithm='baum-welch', max_iterations=50, verbose=True)
-        print('here3')
+        model = pmg.HiddenMarkovModel.from_samples(pmg.NormalDistribution, n_components=self.n_components, X=data, algorithm='baum-welch', max_iterations=1000, verbose=True)
+
+        # model = pmg.HiddenMarkovModel.from_samples(pmg.NormalDistribution, n_components=self.n_components, X=data, algorithm='baum-welch', max_iterations=100, verbose=True)
         print('Training HMM model')
-        model.fit(data, algorithm='baum-welch', verbose=True)
+        model.fit(data, algorithm='baum-welch', verbose=True, max_iterations=1000)
         model.bake()
         # Persist HMM
         model_json = pmg.HiddenMarkovModel.to_json(model)

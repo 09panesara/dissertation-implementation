@@ -113,7 +113,7 @@ def process_CSM(dir, output_dir='../../data/paco'):
                      'LBHD',
                      'RBHD',
                      'C7',
-                     'Sternum',
+                     'STRN',
                      'Shoulder_Asym',
                      'Chest',
                      'LSHO',
@@ -287,13 +287,6 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     frame_joints[joints_y['Hip']] = (frame_joints[joints_y['LHip']] +  frame_joints[joints_y['RHip']]) / 2
                     frame_joints[joints_z['Hip']] = (frame_joints[joints_z['LHip']] +  frame_joints[joints_z['RHip']]) / 2
 
-                    # frame_joints[joints_x['LKnee']] = (x['LKNE'] + x['LBWT']) / 2
-                    # frame_joints[joints_y['LKnee']] = (y['LKNE'] + y['LBWT']) / 2
-                    # frame_joints[joints_z['LKnee']] = (z['LKNE'] + z['LBWT']) / 2
-                    # frame_joints[joints_x['RKnee']] = (x['RFWT'] + x['RBWT']) / 2
-                    # frame_joints[joints_y['RKnee']] = (y['RFWT'] + y['RBWT']) / 2
-                    # frame_joints[joints_z['RKnee']] = (z['RFWT'] + z['RBWT']) / 2
-
                     frame_joints[joints_x['LFoot']] = x['LHEL']
                     frame_joints[joints_y['LFoot']] = y['LHEL']
                     frame_joints[joints_z['LFoot']] = z['LHEL']
@@ -307,9 +300,9 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     frame_joints[joints_z['Spine']] = z['T10']
 
                     # approximately top of spine - see h36m skeleton, thorax keypoints ~ top of spine
-                    frame_joints[joints_x['Thorax']] = x['C7']
-                    frame_joints[joints_y['Thorax']] = y['C7']
-                    frame_joints[joints_z['Thorax']] = z['C7']
+                    frame_joints[joints_x['Thorax']] = x['STRN']
+                    frame_joints[joints_y['Thorax']] = y['STRN']
+                    frame_joints[joints_z['Thorax']] = z['STRN']
 
 
                     # head is center of LFHD RFHD LBHD RBHD
@@ -317,12 +310,12 @@ def process_CSM(dir, output_dir='../../data/paco'):
                     frame_joints[joints_y['Head']] = (y['LFHD'] + y['RFHD'] + y['LBHD'] + y['RBHD']) / 4
                     frame_joints[joints_z['Head']] = (z['LFHD'] + z['RFHD'] + z['LBHD'] + z['RBHD']) / 4
 
+                    frame_joints[joints_x['Neck/Nose']] = x['C7']
+                    frame_joints[joints_y['Neck/Nose']] = y['C7']
+                    frame_joints[joints_z['Neck/Nose']] = z['C7']
+
                     if use_alt_markers:
                         # used in LMA vector for center of shoulders - top of spine = best approximation
-                        frame_joints[joints_x['Neck/Nose']] = x['C7']
-                        frame_joints[joints_y['Neck/Nose']] = y['C7']
-                        frame_joints[joints_z['Neck/Nose']] = z['C7']
-
                         frame_joints[joints_x['LWrist']] = (x['LWristThumb'] + x['LWristPinky']) / 2
                         frame_joints[joints_y['LWrist']] = (y['LWristThumb'] + y['LWristPinky']) / 2
                         frame_joints[joints_z['LWrist']] = (z['LWristThumb'] + z['LWristPinky']) / 2
@@ -338,9 +331,9 @@ def process_CSM(dir, output_dir='../../data/paco'):
                         frame_joints[joints_z['RKnee']] = z['ROuterKnee']
 
                     else:
-                        frame_joints[joints_x['Neck/Nose']] = (x['C7'] + x['CLAV']) / 2
-                        frame_joints[joints_y['Neck/Nose']] = (y['C7'] + y['CLAV']) / 2
-                        frame_joints[joints_z['Neck/Nose']] = (z['C7'] + z['CLAV']) / 2
+                        # frame_joints[joints_x['Neck/Nose']] = (x['C7'] + x['CLAV']) / 2
+                        # frame_joints[joints_y['Neck/Nose']] = (y['C7'] + y['CLAV']) / 2
+                        # frame_joints[joints_z['Neck/Nose']] = (z['C7'] + z['CLAV']) / 2
 
                         frame_joints[joints_x['LWrist']] = (x['LWRA'] + x['LWRB']) / 2
                         frame_joints[joints_y['LWrist']] = (y['LWRA'] + y['LWRB']) / 2
@@ -374,8 +367,10 @@ def process_CSM(dir, output_dir='../../data/paco'):
 
 
 
+
                     assert len(frame_joints) == 51
                     frame_joints = [[frame_joints[i], frame_joints[i+1], frame_joints[i+1]] for i in range(0,51,3)]
+
 
                     # append to curr_positions
                     curr_positions.append(frame_joints)
@@ -385,7 +380,7 @@ def process_CSM(dir, output_dir='../../data/paco'):
 
 
     print('Saving...')
-    np.savez_compressed(output_dir + '/keypoints.npz', positions_3d=positions_3d)
+    np.savez_compressed(output_dir + '/paco_keypoints.npz', positions_3d=positions_3d)
     print('Done.')
     print("Files that need manual processing: ")
     print(files_to_manually_process)
@@ -399,4 +394,6 @@ def process_CSM(dir, output_dir='../../data/paco'):
 if __name__ == '__main__':
     process_CSM('../../data/paco/csm')
 
-# TODO: need to adjust train, test split to split only on emotion and subject
+
+
+

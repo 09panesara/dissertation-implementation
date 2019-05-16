@@ -5,9 +5,9 @@ from collections import Counter
 from sklearn import preprocessing
 
 
-def get_centers(dir, keep_by_emotion=False):
+def get_centers(emotions, dir, keep_by_emotion=False):
     ''' keep_by_emotion = whether to keep separated by emotion '''
-    print('Loading centers...')
+    print('Loading centers from dir ' + dir + '...')
     cluster_centers = []
     for emotion in emotions:
         centers_file = dir+'/clusters_' + emotion + '.npz'
@@ -32,7 +32,7 @@ def _convert_np_arr_to_set(arr):
     return arr
 
 #TODO test
-def merge_centers(centers, thresh):
+def merge_centers_helper(centers, thresh):
     ''' Iteratively merge centroids with a distance less than thresh '''
     old_centers = set([])
     new_centers = _convert_np_arr_to_set(centers)
@@ -72,12 +72,12 @@ def _calc_dist(centers):
     print(np.mean(dist))
 
 
-def find_thresh(dir='../data/action_db/clusters'):
-    emotion_centers = get_centers(dir)
+def find_thresh(emotions, dir='../data/action_db/clusters'):
+    emotion_centers = get_centers(emotions, dir)
     thresholds = [i for i in range(100000000, 400000000, 10000000)] # pick thresh = 6500 # for actions_db
     dict_size = []
     for threshold in thresholds:
-        merged = merge_centers(emotion_centers, threshold)
+        merged = merge_centers_helper(emotion_centers, threshold)
         dict_size.append(len(merged))
     file_path = dir + '/merge_thresh_exper.txt'
     with open(file_path, 'w') as file:
@@ -85,16 +85,13 @@ def find_thresh(dir='../data/action_db/clusters'):
         for i in range(len(thresholds)):
             file.write(str(thresholds[i]) + ' ' + str(dict_size[i]) + "\n")
 
-def merge_centers_paco(thresh=0, dir='../data/paco/clusters', fold=None):
-    ''' Merge centers for paco '''
-    if fold != None:
-        dir = '../data/paco/10_fold_cross_val/clusters/test_fold_' + str(fold)
+def merge_centers(emotions, thresh=0, dir='../data/paco/train-test/clusters'):
+    ''' Merge centers '''
+    emotion_centers = get_centers(emotions, dir)
 
-    emotion_centers = get_centers(dir)
-
-    new_centers = merge_centers(emotion_centers, thresh=thresh)
+    new_centers = merge_centers_helper(emotion_centers, thresh=thresh)
     # get emotion category each merged center belongs to
-    emotion_centers = get_centers(dir, keep_by_emotion=True)
+    emotion_centers = get_centers(emotions, dir, keep_by_emotion=True)
     emotions_of_merged = ['' for c in new_centers]
     print(len(new_centers))
     for i, center in enumerate(new_centers):
@@ -107,23 +104,21 @@ def merge_centers_paco(thresh=0, dir='../data/paco/clusters', fold=None):
     print(counter)
 
     print('Saving merged centers...')
-    np.savez_compressed('../data/paco/clusters/merged_centers.npz', merged_centers=new_centers, thresh=thresh,
+    np.savez_compressed(dir +"/../merged_centers.npz", merged_centers=new_centers, thresh=thresh,
                         centers_emotions=emotions_of_merged)
     print('Done.')
 
 
-def merge_centers_action_db():
-    ''' Merge centers for actions db '''
-    dir = '../data/action_db/clusters'
-    emotion_centers = get_centers(dir)
-    # find_thresh(dir)
-    thresh = 65000000 # for action db
-    new_centers = merge_centers(emotion_centers, thresh=thresh)
+def experiment_merge_centers(emotions, thresh=0, dir='../data/paco/train-test/clusters'):
+    ''' Merge centers '''
+    emotion_centers = get_centers(emotions, dir)
 
+    new_centers = merge_centers_helper(emotion_centers, thresh=thresh)
     # get emotion category each merged center belongs to
-    emotion_centers = get_centers(dir, keep_by_emotion=True)
+    emotion_centers = get_centers(emotions, dir, keep_by_emotion=True)
     emotions_of_merged = ['' for c in new_centers]
-    print(len(new_centers))
+    print('thresh: ' + str(thresh))
+    print('No. merged centers: ' + str(len(new_centers)))
     for i, center in enumerate(new_centers):
         for j in range(len(emotions)):
             for k, c in enumerate(emotion_centers[j]):
@@ -131,20 +126,30 @@ def merge_centers_action_db():
                     emotions_of_merged[i] = emotions[j]
 
     counter = Counter(emotions_of_merged)
+    counter_arr = list(counter.values())
+    print("Mean: " +str(np.mean(counter_arr)))
+    print("Std: " + str(np.std(counter_arr)))
     print(counter)
+    # latex table format\
+    div_by = 100000 if 'paco' in dir else 1000000
+    print(str(thresh/div_by) + " & " + str(len(new_centers)) + " & " + str(np.mean(counter_arr)) + " & " + str(round(np.std(counter_arr), 3)) + " \\\\")
+    print("\n")
 
-    print('Saving merged centers...')
-    np.savez_compressed('../data/action_db/clusters/merged_centers.npz', merged_centers=new_centers, thresh=thresh,
-                        centers_emotions=emotions_of_merged)
-    print('Done.')
 
 
 if __name__ == '__main__':
     emotions = ['ang', 'hap', 'neu', 'sad']
     # find_thresh(dir='../data/paco/clusters')
     # emotions = ['ang', 'fea', 'hap', 'sad', 'unt']
+    path = '../data/action_db/clusters/v1.3'
+    experiment_merge_centers(emotions, thresh=0, dir=path)
+    experiment_merge_centers(emotions, thresh=1.5, dir=path)
+    experiment_merge_centers(emotions, thresh=3, dir=path)
+    experiment_merge_centers(emotions, thresh=4.5, dir=path)
+    experiment_merge_centers(emotions, thresh=6, dir=path)
+    experiment_merge_centers(emotions, thresh=7.5, dir=path)
+    experiment_merge_centers(emotions, thresh=9, dir=path)
 
-    merge_centers_paco(thresh=450000000)
 
 
 

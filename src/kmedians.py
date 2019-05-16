@@ -12,7 +12,7 @@ class kmedians():
         self.max_iter = max_iter
         self.random_state = random_state
         self.total_no_frames = no_frames
-        self.change_in_validity_thresh = 0.32
+        self.change_in_validity_thresh = 0.02
 
     def _e_step(self, X):
         ''' Assign points to clusters '''
