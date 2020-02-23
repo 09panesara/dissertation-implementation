@@ -1,1 +1,2 @@
-# Synthesis of emotion on Nao robot using machine learning on actors clips
+# Recognising emotion from actors walking using Hidden Markov Models
+
